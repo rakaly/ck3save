@@ -1,0 +1,39 @@
+[package]
+name = "ck3save"
+version = "0.1.0"
+authors = ["Nick Babcock <nbabcock19@hotmail.com>"]
+edition = "2018"
+exclude = ["/assets/*", "/fuzz/*"]
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/rakaly/ck3save.git"
+description = "Ergonomically work with all CK3 saves (regular and ironman)"
+keywords = ["ck3", "ironman"]
+categories = ["parsing"]
+
+[features]
+mmap = ['memmap']
+serialize = []
+
+[dependencies]
+jomini = "0.3"
+once_cell = "1"
+zip = { version =  "0.5", default-features = false, features = ["deflate"] }
+serde = { version = "1", features = ["derive"] }
+memmap = { version = "0.7", optional = true }
+twoway = "0.2"
+
+[dev-dependencies]
+rust-s3 = "0.22"
+
+# We override the test profile so that our tests run in a tolerable time as
+# some of the asset files are heavyweight and can take a significant amount of
+# time. Here is some timing data recorded to run one test:
+#
+# cargo test                 0m15.037s
+# cargo test (opt-level=3)   0m9.644s
+# cargo test (+lto=thin)     0m0.907s
+# cargo test --release       0m0.620s
+[profile.test]
+opt-level = 3
+lto = "thin"
