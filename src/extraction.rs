@@ -194,6 +194,7 @@ fn melt_with_temporary<T, R>(
     name: &'static str,
     zip: &mut zip::ZipArchive<R>,
     on_failed_resolve: FailedResolveStrategy,
+    encoding: Encoding,
 ) -> Result<T, Ck3Error>
 where
     R: Read + Seek,
