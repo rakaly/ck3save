@@ -92,7 +92,13 @@ impl Ck3ExtractorBuilder {
                 .from_slice(header, &TokenLookup)
         } else {
             TextDeserializer::from_slice(header)
-        }.map_err(|err| Ck3Error::new(Ck3ErrorKind::Deserialize { part: Some(String::from("header")), err }))?;
+        }
+        .map_err(|err| {
+            Ck3Error::new(Ck3ErrorKind::Deserialize {
+                part: Some(String::from("header")),
+                err,
+            })
+        })?;
 
         let encoding = if is_ironman {
             Encoding::Binary
@@ -118,10 +124,7 @@ impl Ck3ExtractorBuilder {
             }
         };
 
-        let result = Ck3Save {
-            header,
-            gamestate,
-        };
+        let result = Ck3Save { header, gamestate };
         Ok((result, encoding))
     }
 }
@@ -249,7 +252,7 @@ fn split_on_zip(data: &[u8]) -> (&[u8], &[u8]) {
 }
 
 #[cfg(test)]
-mod tests{
+mod tests {
     use super::*;
 
     #[test]
