@@ -3,9 +3,9 @@
 CK3 Save is a library to ergonomically work with Crusader Kings 3 (CK3) saves (ironman + regular).
 
 ```rust
-use Ck3save::{Ck3Extractor};
+use ck3save::{Ck3Extractor, Encoding};
 
-let data = std::fs::read("assets/saves/eng.txt.compressed.Ck3")?;
+let data = std::fs::read("assets/saves/Jarl_Ivar_of_the_Isles_867_01_01.ck3")?;
 let (save, encoding) = Ck3Extractor::extract_save(&data[..])?;
 assert_eq!(encoding, Encoding::Text);
 assert_eq!(save.gamestate.meta_data.version, String::from("1.0.2"));
