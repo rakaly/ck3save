@@ -25,6 +25,11 @@ twoway = "0.2"
 
 [dev-dependencies]
 rust-s3 = "0.22"
+criterion = "0.3"
+
+[[bench]]
+name = "ck3save_bench"
+harness = false
 
 # We override the test profile so that our tests run in a tolerable time as
 # some of the asset files are heavyweight and can take a significant amount of
@@ -37,3 +42,11 @@ rust-s3 = "0.22"
 [profile.test]
 opt-level = 3
 lto = "thin"
+
+[profile.bench]
+lto = true
+codegen-units = 1
+
+[profile.release]
+lto = true
+codegen-units = 1

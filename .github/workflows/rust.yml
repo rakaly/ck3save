@@ -56,6 +56,10 @@ jobs:
     - name: Run tests with memmap
       run: cargo test --features "mmap" --all --verbose -- --nocapture
 
+    - name: Compile benchmarks
+      if: matrix.build == 'stable'
+      run: cargo bench --verbose --no-run
+
     - name: Compile fuzz
       if: matrix.build == 'nightly'
       run: |
