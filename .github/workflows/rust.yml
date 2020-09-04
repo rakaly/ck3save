@@ -55,3 +55,9 @@ jobs:
       run: cargo test --all --verbose -- --nocapture
     - name: Run tests with memmap
       run: cargo test --features "mmap" --all --verbose -- --nocapture
+
+    - name: Compile fuzz
+      if: matrix.build == 'nightly'
+      run: |
+        cargo install cargo-fuzz
+        cargo fuzz build fuzz_extract
