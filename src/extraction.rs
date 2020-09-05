@@ -48,12 +48,19 @@ use crate::{
     tokens::TokenLookup,
     Ck3Error, Ck3ErrorKind, FailedResolveStrategy,
 };
-use jomini::{BinaryDeserializer, TextDeserializer};
+use jomini::{BinaryDeserializer, BinaryFlavor, TextDeserializer};
 use serde::de::{Deserialize, DeserializeOwned};
 use std::io::{Read, Seek};
 
 // The amount of data that we will scan up to looking for a zip signature
-const HEADER_LEN_UPPER_BOUND: usize = 0x10000;
+pub(crate) const HEADER_LEN_UPPER_BOUND: usize = 0x10000;
+
+pub(crate) struct Ck3Flavor;
+impl BinaryFlavor for Ck3Flavor {
+    fn visit_f32(&self, data: &[u8]) -> f32 {
+        unsafe { std::ptr::read_unaligned(data.as_ptr() as *const u8 as *const f32) }
+    }
+}
 
 /// Describes the format of the save before decoding
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -150,7 +157,7 @@ impl Ck3ExtractorBuilder {
         let data = &data[..std::cmp::min(data.len(), HEADER_LEN_UPPER_BOUND)];
         let (header, rest) = split_on_zip(data);
         if sniff_is_binary(header) {
-            let res = BinaryDeserializer::builder()
+            let res = BinaryDeserializer::builder_flavor(Ck3Flavor)
                 .on_failed_resolve(self.on_failed_resolve)
                 .from_slice(header, &TokenLookup)?;
 
@@ -201,7 +208,7 @@ impl Ck3ExtractorBuilder {
             reader.read_to_end(&mut buffer)?;
 
             let data = skip_save_prefix(&buffer);
-            let res = BinaryDeserializer::builder()
+            let res = BinaryDeserializer::builder_flavor(Ck3Flavor)
                 .on_failed_resolve(self.on_failed_resolve)
                 .from_slice(data, &TokenLookup)?;
             Ok((res, Encoding::Binary))
@@ -259,7 +266,7 @@ where
         .map_err(|e| Ck3ErrorKind::ZipExtraction(name, e))?;
 
     if sniff_is_binary(&buffer) {
-        let res = BinaryDeserializer::builder()
+        let res = BinaryDeserializer::builder_flavor(Ck3Flavor)
             .on_failed_resolve(on_failed_resolve)
             .from_slice(&buffer, &TokenLookup)
             .map_err(|e| Ck3ErrorKind::Deserialize {
@@ -298,7 +305,7 @@ where
     let buffer = &mmap[..];
 
     if sniff_is_binary(buffer) {
-        let res = BinaryDeserializer::builder()
+        let res = BinaryDeserializer::builder_flavor(Ck3Flavor)
             .on_failed_resolve(on_failed_resolve)
             .from_slice(&buffer, &TokenLookup)
             .map_err(|e| Ck3ErrorKind::Deserialize {
@@ -330,7 +337,7 @@ fn sniff_is_binary(data: &[u8]) -> bool {
 }
 
 /// Returns the index in the data where the zip occurs
-fn zip_index(data: &[u8]) -> Option<usize> {
+pub(crate) fn zip_index(data: &[u8]) -> Option<usize> {
     twoway::find_bytes(data, &[0x50, 0x4b, 0x03, 0x04])
 }
 

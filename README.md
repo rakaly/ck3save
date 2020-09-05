@@ -1,6 +1,6 @@
 # CK3 Save
 
-CK3 Save is a library to ergonomically work with Crusader Kings 3 (CK3) saves (ironman + regular).
+CK3 Save is a library to ergonomically work with Crusader Kings III (CK3) saves (ironman + regular).
 
 ```rust
 use ck3save::{Ck3Extractor, Encoding};

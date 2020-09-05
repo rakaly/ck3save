@@ -35,11 +35,15 @@ In order to comply with legal restrictions, I cannot share the list of
 tokens. I am also restricted from divulging how the list of tokens can be derived.
 */
 
+mod ck3date;
 mod errors;
 mod extraction;
+mod melt;
 pub mod models;
 mod tokens;
 
+pub use ck3date::*;
 pub use errors::*;
 pub use extraction::*;
 pub use jomini::FailedResolveStrategy;
+pub use melt::*;
