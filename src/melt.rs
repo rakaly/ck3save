@@ -20,17 +20,17 @@ pub struct Melter {
 
 impl Default for Melter {
     fn default() -> Self {
-        Melter::new()
+        Melter {
+            extraction: Extraction::InMemory,
+            on_failed_resolve: FailedResolveStrategy::Ignore,
+        }
     }
 }
 
 impl Melter {
     /// Create a customized version to melt binary data
     pub fn new() -> Self {
-        Melter {
-            extraction: Extraction::InMemory,
-            on_failed_resolve: FailedResolveStrategy::Ignore,
-        }
+        Melter::default()
     }
 
     /// Set the memory allocation extraction behavior for when a zip is encountered
@@ -111,11 +111,6 @@ impl Melter {
                         Some(_x) => data.len(),
                         None => data.len(),
                     };
-
-                    // Don't quote object keys. This is not requirement of PDS game engine, but rather
-                    // the converter project. I'd typically be less than enthusiastic catering to a
-                    // non-pds use case, but since it does cut down on file length, it can be seen as a
-                    // win-win.
                     if in_object == 1 {
                         writer.extend_from_slice(&data[..end_idx]);
                     } else {
@@ -124,8 +119,8 @@ impl Melter {
                         writer.push(b'"');
                     }
                 }
-                BinaryToken::F32(x) => write!(writer, "{}", x).map_err(Ck3ErrorKind::IoErr)?,
-                BinaryToken::Q16(x) => write!(writer, "{}", x).map_err(Ck3ErrorKind::IoErr)?,
+                BinaryToken::F32_1(x) => write!(writer, "{}", x).map_err(Ck3ErrorKind::IoErr)?,
+                BinaryToken::F32_2(x) => write!(writer, "{}", x).map_err(Ck3ErrorKind::IoErr)?,
                 BinaryToken::Token(x) => match TokenLookup.resolve(*x) {
                     Some(id) if id == "is_ironman" && in_object == 1 => {
                         let skip = tokens

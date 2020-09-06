@@ -57,8 +57,13 @@ pub(crate) const HEADER_LEN_UPPER_BOUND: usize = 0x10000;
 
 pub(crate) struct Ck3Flavor;
 impl BinaryFlavor for Ck3Flavor {
-    fn visit_f32(&self, data: &[u8]) -> f32 {
+    fn visit_f32_1(&self, data: &[u8]) -> f32 {
         unsafe { std::ptr::read_unaligned(data.as_ptr() as *const u8 as *const f32) }
+    }
+
+    fn visit_f32_2(&self, data: &[u8]) -> f32 {
+        let val = unsafe { std::ptr::read_unaligned(data.as_ptr() as *const u8 as *const i32) };
+        (val as f32) / 1000.0
     }
 }
 
