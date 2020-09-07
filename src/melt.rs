@@ -185,6 +185,8 @@ impl Melter {
         Ok(())
     }
 
+    /// Given one of the accepted inputs, this will return the save id line (if present in the input)
+    /// with the gamestate data decoded from binary to plain text.
     pub fn melt(&self, data: &[u8]) -> Result<Vec<u8>, Ck3Error> {
         let mut result = Vec::with_capacity(data.len());
 
