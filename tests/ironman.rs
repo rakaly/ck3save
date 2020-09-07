@@ -86,3 +86,9 @@ fn test_header_melt() {
     let out = ck3save::Melter::new().melt(&data[..]).unwrap();
     assert_eq!(&melted[..], &out[..]);
 }
+
+#[test]
+fn test_melt_no_crash() {
+    let data = include_bytes!("fixtures/melt.crash1");
+    let _ = ck3save::Melter::new().melt(&data[..]);
+}
