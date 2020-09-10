@@ -1,5 +1,5 @@
 use crate::{
-    tokens::TokenLookup, zip_index, Ck3Date, Ck3Error, Ck3ErrorKind, Ck3Flavor, Extraction,
+    tokens::TokenLookup, zip_index, Ck3Date, Ck3Error, Ck3ErrorKind, Extraction,
     FailedResolveStrategy, HEADER_LEN_UPPER_BOUND,
 };
 use jomini::{BinaryTape, BinaryToken, TokenResolver};
@@ -46,7 +46,7 @@ impl Melter {
     }
 
     fn convert(&self, input: &[u8], writer: &mut Vec<u8>) -> Result<(), Ck3Error> {
-        let tape = BinaryTape::parser_flavor(Ck3Flavor).parse_slice(input)?;
+        let tape = BinaryTape::from_ck3(input)?;
         let mut depth = 0;
         let mut in_objects: Vec<i32> = Vec::new();
         let mut in_object = 1;

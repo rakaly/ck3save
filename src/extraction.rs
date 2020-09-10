@@ -48,24 +48,12 @@ use crate::{
     tokens::TokenLookup,
     Ck3Error, Ck3ErrorKind, FailedResolveStrategy,
 };
-use jomini::{BinaryDeserializer, BinaryFlavor, TextDeserializer};
+use jomini::{BinaryDeserializer, TextDeserializer};
 use serde::de::{Deserialize, DeserializeOwned};
 use std::io::{Read, Seek};
 
 // The amount of data that we will scan up to looking for a zip signature
 pub(crate) const HEADER_LEN_UPPER_BOUND: usize = 0x10000;
-
-pub(crate) struct Ck3Flavor;
-impl BinaryFlavor for Ck3Flavor {
-    fn visit_f32_1(&self, data: &[u8]) -> f32 {
-        unsafe { std::ptr::read_unaligned(data.as_ptr() as *const u8 as *const f32) }
-    }
-
-    fn visit_f32_2(&self, data: &[u8]) -> f32 {
-        let val = unsafe { std::ptr::read_unaligned(data.as_ptr() as *const u8 as *const i32) };
-        (val as f32) / 1000.0
-    }
-}
 
 /// Describes the format of the save before decoding
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -162,7 +150,8 @@ impl Ck3ExtractorBuilder {
         let data = &data[..std::cmp::min(data.len(), HEADER_LEN_UPPER_BOUND)];
         let (header, rest) = split_on_zip(data);
         if sniff_is_binary(header) {
-            let res = BinaryDeserializer::builder_flavor(Ck3Flavor)
+            dbg!("BINARY");
+            let res = BinaryDeserializer::ck3_builder()
                 .on_failed_resolve(self.on_failed_resolve)
                 .from_slice(header, &TokenLookup)?;
 
@@ -172,7 +161,7 @@ impl Ck3ExtractorBuilder {
                 Ok((res, Encoding::BinaryZip))
             }
         } else {
-            let res = TextDeserializer::from_slice(header)?;
+            let res = TextDeserializer::from_utf8_slice(header)?;
             Ok((res, Encoding::TextZip))
         }
     }
@@ -213,7 +202,7 @@ impl Ck3ExtractorBuilder {
             reader.read_to_end(&mut buffer)?;
 
             let data = skip_save_prefix(&buffer);
-            let res = BinaryDeserializer::builder_flavor(Ck3Flavor)
+            let res = BinaryDeserializer::ck3_builder()
                 .on_failed_resolve(self.on_failed_resolve)
                 .from_slice(data, &TokenLookup)?;
             Ok((res, Encoding::Binary))
@@ -271,7 +260,7 @@ where
         .map_err(|e| Ck3ErrorKind::ZipExtraction(name, e))?;
 
     if sniff_is_binary(&buffer) {
-        let res = BinaryDeserializer::builder_flavor(Ck3Flavor)
+        let res = BinaryDeserializer::ck3_builder()
             .on_failed_resolve(on_failed_resolve)
             .from_slice(&buffer, &TokenLookup)
             .map_err(|e| Ck3ErrorKind::Deserialize {
@@ -280,7 +269,7 @@ where
             })?;
         Ok((res, Encoding::BinaryZip))
     } else {
-        let res = TextDeserializer::from_slice(&buffer)?;
+        let res = TextDeserializer::from_utf8_slice(&buffer)?;
         Ok((res, Encoding::TextZip))
     }
 }
@@ -310,7 +299,7 @@ where
     let buffer = &mmap[..];
 
     if sniff_is_binary(buffer) {
-        let res = BinaryDeserializer::builder_flavor(Ck3Flavor)
+        let res = BinaryDeserializer::ck3_builder()
             .on_failed_resolve(on_failed_resolve)
             .from_slice(&buffer, &TokenLookup)
             .map_err(|e| Ck3ErrorKind::Deserialize {
@@ -319,7 +308,7 @@ where
             })?;
         Ok((res, Encoding::BinaryZip))
     } else {
-        let res = TextDeserializer::from_slice(&buffer)?;
+        let res = TextDeserializer::from_utf8_slice(&buffer)?;
         Ok((res, Encoding::TextZip))
     }
 }
