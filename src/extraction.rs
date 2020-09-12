@@ -150,7 +150,6 @@ impl Ck3ExtractorBuilder {
         let data = &data[..std::cmp::min(data.len(), HEADER_LEN_UPPER_BOUND)];
         let (header, rest) = split_on_zip(data);
         if sniff_is_binary(header) {
-            dbg!("BINARY");
             let res = BinaryDeserializer::ck3_builder()
                 .on_failed_resolve(self.on_failed_resolve)
                 .from_slice(header, &TokenLookup)?;
