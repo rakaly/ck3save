@@ -1,3 +1,5 @@
+![ci](https://github.com/rakaly/ck3save/workflows/ci/badge.svg) [![](https://docs.rs/ck3save/badge.svg)](https://docs.rs/ck3save) [![Version](https://img.shields.io/crates/v/ck3save.svg?style=flat-square)](https://crates.io/crates/ck3save)
+
 # CK3 Save
 
 CK3 Save is a library to ergonomically work with Crusader Kings III (CK3) saves (ironman + regular).
