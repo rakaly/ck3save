@@ -1,3 +1,8 @@
+## v0.1.2 - 2020-10-02
+
+* Update parser dependency to 0.7
+* Able to losslessly melt `levels = { 10 0=1 1=2 }`
+
 ## v0.1.1 - 2020-09-12
 
 Update internal parser to latest which brings proper UTF-8 deserialization, performance improvements, and robustness against malicious input
