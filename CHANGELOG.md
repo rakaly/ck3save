@@ -1,3 +1,7 @@
+## v0.1.4 - 2020-10-29
+
+* Update internal parser for performance improvements
+
 ## v0.1.3 - 2020-10-02
 
 * Fix botched release
