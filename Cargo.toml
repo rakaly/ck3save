@@ -23,7 +23,7 @@ memmap = { version = "0.7", optional = true }
 twoway = "0.2"
 
 [dev-dependencies]
-rust-s3 = "0.26"
+attohttpc = "0.16"
 criterion = "0.3"
 
 [[bench]]
