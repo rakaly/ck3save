@@ -51,6 +51,7 @@ impl Melter {
         let mut in_objects: Vec<i32> = Vec::new();
         let mut in_object = 1;
         let mut token_idx = 0;
+        let mut known_number = false;
         let tokens = tape.tokens();
 
         while let Some(token) = tokens.get(token_idx) {
@@ -106,7 +107,10 @@ impl Melter {
                 BinaryToken::U32(x) => writer.extend_from_slice(format!("{}", x).as_bytes()),
                 BinaryToken::U64(x) => writer.extend_from_slice(format!("{}", x).as_bytes()),
                 BinaryToken::I32(x) => {
-                    if let Some(date) = Ck3Date::from_binary(*x) {
+                    if known_number {
+                        writer.extend_from_slice(format!("{}", x).as_bytes());
+                        known_number = false;
+                    } else if let Some(date) = Ck3Date::from_binary(*x) {
                         writer.extend_from_slice(date.game_fmt().as_bytes());
                     } else {
                         writer.extend_from_slice(format!("{}", x).as_bytes());
@@ -143,7 +147,10 @@ impl Melter {
                         token_idx = skip;
                         continue;
                     }
-                    Some(id) => writer.extend_from_slice(&id.as_bytes()),
+                    Some(id) => {
+                        known_number = in_object == 1 && id == "seed";
+                        writer.extend_from_slice(&id.as_bytes())
+                    },
                     None => match self.on_failed_resolve {
                         FailedResolveStrategy::Error => {
                             return Err(Ck3ErrorKind::UnknownToken { token_id: *x }.into());
