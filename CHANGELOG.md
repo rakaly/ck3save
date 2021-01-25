@@ -1,3 +1,8 @@
+## v0.2.0 - 2021-01-25
+
+* Fixed seed properties being detected and melted as dates instead of numbers
+* *Breaking*: Melter will return a set of unknown tokens (when melting does not fail)
+
 ## v0.1.4 - 2020-10-29
 
 * Update internal parser for performance improvements
