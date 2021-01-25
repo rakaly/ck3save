@@ -73,7 +73,7 @@ fn test_ck3_binary_save_tokens() -> Result<(), Box<dyn std::error::Error>> {
 #[test]
 fn test_roundtrip_header_melt() {
     let data = include_bytes!("fixtures/header.bin");
-    let out = ck3save::Melter::new().melt(&data[..]).unwrap();
+    let (out, _tokens) = ck3save::Melter::new().melt(&data[..]).unwrap();
     let (header, encoding) = Ck3Extractor::extract_header(&out).unwrap();
     assert_eq!(encoding, Encoding::TextZip);
     assert_eq!(header.meta_data.version, String::from("1.0.2"));
@@ -83,7 +83,7 @@ fn test_roundtrip_header_melt() {
 fn test_header_melt() {
     let data = include_bytes!("fixtures/header.bin");
     let melted = include_bytes!("fixtures/header.melted");
-    let out = ck3save::Melter::new().melt(&data[..]).unwrap();
+    let (out, _tokens) = ck3save::Melter::new().melt(&data[..]).unwrap();
     assert_eq!(&melted[..], &out[..]);
 }
 

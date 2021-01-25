@@ -3,7 +3,10 @@ use crate::{
     FailedResolveStrategy, HEADER_LEN_UPPER_BOUND,
 };
 use jomini::{BinaryTape, BinaryToken, TokenResolver};
-use std::io::{Cursor, Read, Write};
+use std::{
+    collections::HashSet,
+    io::{Cursor, Read, Write},
+};
 
 /// Convert a binary gamestate to plaintext
 ///
@@ -45,7 +48,12 @@ impl Melter {
         self
     }
 
-    fn convert(&self, input: &[u8], writer: &mut Vec<u8>) -> Result<(), Ck3Error> {
+    fn convert(
+        &self,
+        input: &[u8],
+        writer: &mut Vec<u8>,
+        unknown_tokens: &mut HashSet<u16>,
+    ) -> Result<(), Ck3Error> {
         let tape = BinaryTape::from_ck3(input)?;
         let mut depth = 0;
         let mut in_objects: Vec<i32> = Vec::new();
@@ -151,28 +159,31 @@ impl Melter {
                         known_number = in_object == 1 && id == "seed";
                         writer.extend_from_slice(&id.as_bytes())
                     }
-                    None => match self.on_failed_resolve {
-                        FailedResolveStrategy::Error => {
-                            return Err(Ck3ErrorKind::UnknownToken { token_id: *x }.into());
-                        }
-                        FailedResolveStrategy::Ignore if in_object == 1 => {
-                            let skip = tokens
-                                .get(token_idx + 1)
-                                .map(|next_token| match next_token {
-                                    BinaryToken::Object(end) => end + 1,
-                                    BinaryToken::Array(end) => end + 1,
-                                    _ => token_idx + 2,
-                                })
-                                .unwrap_or(token_idx + 1);
+                    None => {
+                        unknown_tokens.insert(*x);
+                        match self.on_failed_resolve {
+                            FailedResolveStrategy::Error => {
+                                return Err(Ck3ErrorKind::UnknownToken { token_id: *x }.into());
+                            }
+                            FailedResolveStrategy::Ignore if in_object == 1 => {
+                                let skip = tokens
+                                    .get(token_idx + 1)
+                                    .map(|next_token| match next_token {
+                                        BinaryToken::Object(end) => end + 1,
+                                        BinaryToken::Array(end) => end + 1,
+                                        _ => token_idx + 2,
+                                    })
+                                    .unwrap_or(token_idx + 1);
 
-                            token_idx = skip;
-                            continue;
+                                token_idx = skip;
+                                continue;
+                            }
+                            _ => {
+                                let unknown = format!("__unknown_0x{:x}", x);
+                                writer.extend_from_slice(unknown.as_bytes());
+                            }
                         }
-                        _ => {
-                            let unknown = format!("__unknown_0x{:x}", x);
-                            writer.extend_from_slice(unknown.as_bytes());
-                        }
-                    },
+                    }
                 },
                 BinaryToken::Rgb(color) => {
                     writer.extend_from_slice(b"rgb {");
@@ -202,8 +213,9 @@ impl Melter {
 
     /// Given one of the accepted inputs, this will return the save id line (if present in the input)
     /// with the gamestate data decoded from binary to plain text.
-    pub fn melt(&self, data: &[u8]) -> Result<Vec<u8>, Ck3Error> {
+    pub fn melt(&self, data: &[u8]) -> Result<(Vec<u8>, HashSet<u16>), Ck3Error> {
         let mut result = Vec::with_capacity(data.len());
+        let mut unknown_tokens = HashSet::new();
 
         // if there is a save id line in the data, we should preserve it
         let has_save_id = data.get(0..3).map_or(false, |x| x == b"SAV");
@@ -239,7 +251,7 @@ impl Melter {
                     zip_file
                         .read_to_end(&mut inflated_data)
                         .map_err(|e| Ck3ErrorKind::ZipExtraction("gamestate", e))?;
-                    self.convert(&inflated_data, &mut result)?
+                    self.convert(&inflated_data, &mut result, &mut unknown_tokens)?
                 }
 
                 #[cfg(feature = "mmap")]
@@ -247,13 +259,13 @@ impl Melter {
                     let mut mmap = memmap::MmapMut::map_anon(zip_file.size() as usize)?;
                     std::io::copy(&mut zip_file, &mut mmap.as_mut())
                         .map_err(|e| Ck3ErrorKind::ZipExtraction("gamestate", e))?;
-                    self.convert(&mmap[..], &mut result)?
+                    self.convert(&mmap[..], &mut result, &mut unknown_tokens)?
                 }
             }
         } else {
-            self.convert(data, &mut result)?
+            self.convert(data, &mut result, &mut unknown_tokens)?
         };
 
-        Ok(result)
+        Ok((result, unknown_tokens))
     }
 }
