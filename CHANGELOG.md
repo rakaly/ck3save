@@ -1,3 +1,7 @@
+## v0.2.1 - 2021-02-05
+
+- Melter will only quote values that are quoted in plaintext
+
 ## v0.2.0 - 2021-01-25
 
 * Fixed seed properties being detected and melted as dates instead of numbers
