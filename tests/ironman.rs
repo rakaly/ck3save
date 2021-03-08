@@ -44,7 +44,7 @@ fn test_ck3_binary_save_header_borrowed() {
 
 #[test]
 fn test_ck3_binary_autosave() -> Result<(), Box<dyn std::error::Error>> {
-    let data = utils::request("autosave.ck3.zip");
+    let data = utils::request("autosave.zip");
     let reader = Cursor::new(&data[..]);
     let mut zip = zip::ZipArchive::new(reader).unwrap();
     let mut zip_file = zip.by_index(0).unwrap();
