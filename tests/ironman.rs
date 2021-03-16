@@ -92,3 +92,15 @@ fn test_melt_no_crash() {
     let data = include_bytes!("fixtures/melt.crash1");
     let _ = ck3save::Melter::new().melt(&data[..]);
 }
+
+#[test]
+fn test_ck3_binary_save_patch_1_3() -> Result<(), Box<dyn std::error::Error>> {
+    let data = utils::request("ck3-1.3-test.ck3");
+    let (_out, _tokens) = ck3save::Melter::new()
+        .with_on_failed_resolve(FailedResolveStrategy::Error)
+        .melt(&data)?;
+    let reader = Cursor::new(&data[..]);
+    let (save, _encoding) = Ck3Extractor::extract_save(reader)?;
+    assert_eq!(save.meta_data.version, String::from("1.3.0"));
+    Ok(())
+}
