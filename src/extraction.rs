@@ -15,12 +15,6 @@ sections:
 For standard saves, the header and the compressed gamestate are plaintext. Ironman saves use the
 standard PDS binary format (not explained here).
 
-One knows the header is done when the zip file signature is encountered:
-
-```ignore
-50 4B 03 04
-```
-
 What is interesting is that the gamestate contains the same header info. So one can bypass the
 header and skip right to the zip file and there won't be any loss of data.
 
@@ -32,13 +26,13 @@ Now for autosave format:
 These 3 formats pose an interesting challenge. If we only looked for the zip file signature (to
 split the file to ensure our parser doesn't start interpretting zip data), we may end up scanning
 100MB worth of data before realizing it's an autosave. This would be bad for performance. The
-solution is to take advantage that headers are less than 64KB long. If the zip signature appears
-there, we chop off whatever zip data was included and parse the remaining.
+solution is to take advantage that zips orient themselves at the end of the file, so we assume
+a zip until further notice.
 
 In short, to know what the save file format:
 
-- Take the first 64KB
-- if there is no zip signature, we know it's an autosave (uncompressed binary)
+- Attempt to parse as zip
+- if not a zip, we know it's an autosave (uncompressed binary)
 - else if the 3rd and 4th byte are `01 00` then we know it's ironman
 - else it's a standard save
 */
@@ -50,10 +44,8 @@ use crate::{
 };
 use jomini::{BinaryDeserializer, TextDeserializer};
 use serde::de::{Deserialize, DeserializeOwned};
-use std::io::{Read, Seek};
-
-// The amount of data that we will scan up to looking for a zip signature
-pub(crate) const HEADER_LEN_UPPER_BOUND: usize = 0x10000;
+use std::io::{Cursor, Read, Seek, SeekFrom};
+use zip::{result::ZipError, ZipArchive};
 
 /// Describes the format of the save before decoding
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -108,7 +100,7 @@ impl Default for Ck3ExtractorBuilder {
 
 impl Ck3ExtractorBuilder {
     /// Create a new extractor with default values: extract zips into memory
-    // and ignore unknown binary tokens
+    /// and ignore unknown binary tokens
     pub fn new() -> Self {
         Ck3ExtractorBuilder {
             extraction: Extraction::InMemory,
@@ -147,20 +139,27 @@ impl Ck3ExtractorBuilder {
         T: Deserialize<'de>,
     {
         let data = skip_save_prefix(&data);
-        let data = &data[..std::cmp::min(data.len(), HEADER_LEN_UPPER_BOUND)];
-        let (header, rest) = split_on_zip(data);
-        if sniff_is_binary(header) {
+        let mut cursor = Cursor::new(data);
+        let offset = match detect_encoding(&mut cursor)? {
+            BodyEncoding::Plain => data.len(),
+            BodyEncoding::Zip(zip) => zip.offset() as usize,
+        };
+
+        let is_zipped = offset != data.len();
+        let data = &data[..offset];
+        if sniff_is_binary(data) {
+            let encoding = if is_zipped {
+                Encoding::BinaryZip
+            } else {
+                Encoding::Binary
+            };
             let res = BinaryDeserializer::ck3_builder()
                 .on_failed_resolve(self.on_failed_resolve)
-                .from_slice(header, &TokenLookup)?;
-
-            if rest.is_empty() {
-                Ok((res, Encoding::Binary))
-            } else {
-                Ok((res, Encoding::BinaryZip))
-            }
+                .from_slice(data, &TokenLookup)?;
+            Ok((res, encoding))
         } else {
-            let res = TextDeserializer::from_utf8_slice(header)?;
+            // allow uncompressed text as TextZip even though the game doesn't produce said format
+            let res = TextDeserializer::from_utf8_slice(data)?;
             Ok((res, Encoding::TextZip))
         }
     }
@@ -179,16 +178,25 @@ impl Ck3ExtractorBuilder {
         R: Read + Seek,
         T: DeserializeOwned,
     {
-        // First we need to determine if we are in an autosave or a header + zip save.
-        // We determine this by examining the first 64KB and if the zip magic header
-        // occurs then we know it is a zip file.
-        let mut buffer = vec![0; HEADER_LEN_UPPER_BOUND];
-        read_upto(&mut reader, &mut buffer)?;
+        let mut buffer = Vec::new();
+        match detect_encoding(&mut reader)? {
+            BodyEncoding::Plain => {
+                // Ensure we are at the start of the stream
+                reader.seek(SeekFrom::Start(0))?;
 
-        if zip_index(&buffer).is_some() {
-            let mut zip =
-                zip::ZipArchive::new(&mut reader).map_err(Ck3ErrorKind::ZipCentralDirectory)?;
-            match self.extraction {
+                // So we can get the length
+                let len = reader.seek(SeekFrom::End(0))?;
+                reader.seek(SeekFrom::Start(0))?;
+                buffer.reserve(len as usize);
+                reader.read_to_end(&mut buffer)?;
+
+                let data = skip_save_prefix(&buffer);
+                let res = BinaryDeserializer::ck3_builder()
+                    .on_failed_resolve(self.on_failed_resolve)
+                    .from_slice(data, &TokenLookup)?;
+                Ok((res, Encoding::Binary))
+            }
+            BodyEncoding::Zip(mut zip) => match self.extraction {
                 Extraction::InMemory => {
                     melt_in_memory(&mut buffer, "gamestate", &mut zip, self.on_failed_resolve)
                 }
@@ -196,15 +204,7 @@ impl Ck3ExtractorBuilder {
                 Extraction::MmapTemporaries => {
                     melt_with_temporary("gamestate", &mut zip, self.on_failed_resolve)
                 }
-            }
-        } else {
-            reader.read_to_end(&mut buffer)?;
-
-            let data = skip_save_prefix(&buffer);
-            let res = BinaryDeserializer::ck3_builder()
-                .on_failed_resolve(self.on_failed_resolve)
-                .from_slice(data, &TokenLookup)?;
-            Ok((res, Encoding::Binary))
+            },
         }
     }
 }
@@ -329,39 +329,25 @@ fn sniff_is_binary(data: &[u8]) -> bool {
     data.get(2..4).map_or(false, |x| x == [0x01, 0x00])
 }
 
-/// Returns the index in the data where the zip occurs
-pub(crate) fn zip_index(data: &[u8]) -> Option<usize> {
-    twoway::find_bytes(data, &[0x50, 0x4b, 0x03, 0x04])
-}
-
-/// The save embeds a zip after the header. This function finds the zip magic code
-/// and splits the data into two so they can be parsed separately.
-fn split_on_zip(data: &[u8]) -> (&[u8], &[u8]) {
-    if let Some(idx) = zip_index(data) {
-        data.split_at(idx)
-    } else {
-        data.split_at(data.len())
-    }
-}
-
-// Read until either the reader is out of data or the buffer is filled.
-// This is essentially Read::read_exact without the validation at the end
-fn read_upto<R>(reader: &mut R, mut buf: &mut [u8]) -> Result<(), std::io::Error>
+pub(crate) enum BodyEncoding<'a, R>
 where
-    R: std::io::Read,
+    R: Read + Seek,
 {
-    while !buf.is_empty() {
-        match reader.read(buf) {
-            Ok(0) => break,
-            Ok(n) => {
-                let tmp = buf;
-                buf = &mut tmp[n..];
-            }
-            Err(ref e) if e.kind() == std::io::ErrorKind::Interrupted => {}
-            Err(e) => return Err(e),
-        }
+    Zip(ZipArchive<&'a mut R>),
+    Plain,
+}
+
+pub(crate) fn detect_encoding<R>(reader: &mut R) -> Result<BodyEncoding<R>, Ck3Error>
+where
+    R: Read + Seek,
+{
+    let zip_attempt = zip::ZipArchive::new(reader);
+
+    match zip_attempt {
+        Ok(x) => Ok(BodyEncoding::Zip(x)),
+        Err(ZipError::InvalidArchive(_)) => Ok(BodyEncoding::Plain),
+        Err(e) => Err(Ck3Error::new(Ck3ErrorKind::ZipCentralDirectory(e))),
     }
-    Ok(())
 }
 
 #[cfg(test)]

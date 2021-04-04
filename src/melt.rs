@@ -1,6 +1,6 @@
 use crate::{
-    tokens::TokenLookup, zip_index, Ck3Date, Ck3Error, Ck3ErrorKind, Extraction,
-    FailedResolveStrategy, HEADER_LEN_UPPER_BOUND,
+    detect_encoding, tokens::TokenLookup, BodyEncoding, Ck3Date, Ck3Error, Ck3ErrorKind,
+    Extraction, FailedResolveStrategy,
 };
 use jomini::{BinaryTape, BinaryToken, TokenResolver};
 use std::{
@@ -235,42 +235,40 @@ impl Melter {
             data
         };
 
-        let cutoff = std::cmp::min(data.len(), HEADER_LEN_UPPER_BOUND);
-        let zip_searchspace = &data[..cutoff];
-        if zip_index(zip_searchspace).is_some() {
-            let zip_reader = Cursor::new(data);
-            let mut zip =
-                zip::ZipArchive::new(zip_reader).map_err(Ck3ErrorKind::ZipCentralDirectory)?;
-            let size = zip
-                .by_name("gamestate")
-                .map_err(|e| Ck3ErrorKind::ZipMissingEntry("gamestate", e))
-                .map(|x| x.size())?;
-            result.reserve(size as usize);
+        let mut reader = Cursor::new(data);
 
-            let mut zip_file = zip
-                .by_name("gamestate")
-                .map_err(|e| Ck3ErrorKind::ZipMissingEntry("gamestate", e))?;
+        match detect_encoding(&mut reader)? {
+            BodyEncoding::Plain => self.convert(data, &mut result, &mut unknown_tokens)?,
+            BodyEncoding::Zip(mut zip) => {
+                let size = zip
+                    .by_name("gamestate")
+                    .map_err(|e| Ck3ErrorKind::ZipMissingEntry("gamestate", e))
+                    .map(|x| x.size())?;
+                result.reserve(size as usize);
 
-            match self.extraction {
-                Extraction::InMemory => {
-                    let mut inflated_data: Vec<u8> = Vec::with_capacity(size as usize);
-                    zip_file
-                        .read_to_end(&mut inflated_data)
-                        .map_err(|e| Ck3ErrorKind::ZipExtraction("gamestate", e))?;
-                    self.convert(&inflated_data, &mut result, &mut unknown_tokens)?
-                }
+                let mut zip_file = zip
+                    .by_name("gamestate")
+                    .map_err(|e| Ck3ErrorKind::ZipMissingEntry("gamestate", e))?;
 
-                #[cfg(feature = "mmap")]
-                Extraction::MmapTemporaries => {
-                    let mut mmap = memmap::MmapMut::map_anon(zip_file.size() as usize)?;
-                    std::io::copy(&mut zip_file, &mut mmap.as_mut())
-                        .map_err(|e| Ck3ErrorKind::ZipExtraction("gamestate", e))?;
-                    self.convert(&mmap[..], &mut result, &mut unknown_tokens)?
+                match self.extraction {
+                    Extraction::InMemory => {
+                        let mut inflated_data: Vec<u8> = Vec::with_capacity(size as usize);
+                        zip_file
+                            .read_to_end(&mut inflated_data)
+                            .map_err(|e| Ck3ErrorKind::ZipExtraction("gamestate", e))?;
+                        self.convert(&inflated_data, &mut result, &mut unknown_tokens)?
+                    }
+
+                    #[cfg(feature = "mmap")]
+                    Extraction::MmapTemporaries => {
+                        let mut mmap = memmap::MmapMut::map_anon(zip_file.size() as usize)?;
+                        std::io::copy(&mut zip_file, &mut mmap.as_mut())
+                            .map_err(|e| Ck3ErrorKind::ZipExtraction("gamestate", e))?;
+                        self.convert(&mmap[..], &mut result, &mut unknown_tokens)?
+                    }
                 }
             }
-        } else {
-            self.convert(data, &mut result, &mut unknown_tokens)?
-        };
+        }
 
         Ok((result, unknown_tokens))
     }

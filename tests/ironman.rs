@@ -55,6 +55,10 @@ fn test_ck3_binary_autosave() -> Result<(), Box<dyn std::error::Error>> {
     let (save, encoding) = Ck3Extractor::extract_save(reader)?;
     assert_eq!(encoding, Encoding::Binary);
     assert_eq!(save.meta_data.version, String::from("1.0.2"));
+
+    let (save, encoding) = Ck3Extractor::extract_header(&buffer[..])?;
+    assert_eq!(encoding, Encoding::Binary);
+    assert_eq!(save.meta_data.version, String::from("1.0.2"));
     Ok(())
 }
 
