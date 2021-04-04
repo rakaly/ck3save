@@ -20,7 +20,6 @@ jomini = "0.11"
 zip = { version =  "0.5", default-features = false, features = ["deflate"] }
 serde = { version = "1", features = ["derive"] }
 memmap = { version = "0.7", optional = true }
-twoway = "0.2"
 
 [dev-dependencies]
 attohttpc = "0.16"
