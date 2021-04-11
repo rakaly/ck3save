@@ -108,3 +108,19 @@ fn test_ck3_binary_save_patch_1_3() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(save.meta_data.version, String::from("1.3.0"));
     Ok(())
 }
+
+#[test]
+fn test_ck3_1_0_3_old_cloud_and_local_tokens() -> Result<(), Box<dyn std::error::Error>> {
+    let data = utils::request("ck3-1.0.3-local.ck3");
+    let (_out, _tokens) = ck3save::Melter::new()
+        .with_on_failed_resolve(FailedResolveStrategy::Error)
+        .melt(&data)?;
+
+    let reader = Cursor::new(&data[..]);
+    let (save, encoding) = Ck3Extractor::builder()
+        .with_on_failed_resolve(FailedResolveStrategy::Error)
+        .extract_save(reader)?;
+    assert_eq!(encoding, Encoding::BinaryZip);
+    assert_eq!(save.meta_data.version, String::from("1.0.3"));
+    Ok(())
+}
