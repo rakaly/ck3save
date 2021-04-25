@@ -171,7 +171,14 @@ impl Melter {
                     }
                     Some(id) => {
                         known_number = in_object == 1 && id == "seed";
-                        reencode_float_token = in_object == 1 && id == "gold";
+                        reencode_float_token = in_object == 1
+                            && matches!(
+                                id,
+                                "gold"
+                                    | "vassal_power_value"
+                                    | "budget_war_chest"
+                                    | "budget_short_term"
+                            );
                         writer.extend_from_slice(&id.as_bytes())
                     }
                     None => {
