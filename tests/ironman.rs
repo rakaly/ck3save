@@ -124,3 +124,34 @@ fn test_ck3_1_0_3_old_cloud_and_local_tokens() -> Result<(), Box<dyn std::error:
     assert_eq!(save.meta_data.version, String::from("1.0.3"));
     Ok(())
 }
+
+#[test]
+fn decode_and_melt_gold_correctly() -> Result<(), Box<dyn std::error::Error>> {
+    let data = utils::request("ck3-1.3.1.ck3");
+    let reader = Cursor::new(&data[..]);
+    let (save, encoding) = Ck3Extractor::builder()
+        .with_on_failed_resolve(FailedResolveStrategy::Error)
+        .extract_save(reader)?;
+    assert_eq!(encoding, Encoding::BinaryZip);
+    let character = save.living.get(&16322).unwrap();
+    assert_eq!(
+        character.alive_data.as_ref().and_then(|x| x.health),
+        Some(4.728)
+    );
+    assert_eq!(
+        character.alive_data.as_ref().and_then(|x| x.income),
+        Some(11.087)
+    );
+    assert_eq!(
+        character.alive_data.as_ref().and_then(|x| x.gold),
+        Some(133.04398)
+    );
+
+    let (out, _tokens) = ck3save::Melter::new()
+        .with_on_failed_resolve(FailedResolveStrategy::Error)
+        .melt(&data)?;
+
+    twoway::find_bytes(&out, b"gold=133.04398").unwrap();
+
+    Ok(())
+}

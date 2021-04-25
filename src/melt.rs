@@ -1,3 +1,4 @@
+use crate::util::reencode_float;
 use crate::{
     detect_encoding, tokens::TokenLookup, BodyEncoding, Ck3Date, Ck3Error, Ck3ErrorKind,
     Extraction, FailedResolveStrategy,
@@ -60,6 +61,7 @@ impl Melter {
         let mut in_object = 1;
         let mut token_idx = 0;
         let mut known_number = false;
+        let mut reencode_float_token = false;
         let tokens = tape.tokens();
 
         while let Some(token) = tokens.get(token_idx) {
@@ -146,7 +148,13 @@ impl Melter {
                     writer.extend_from_slice(&data);
                 }
                 BinaryToken::F32_1(x) => write!(writer, "{}", x).map_err(Ck3ErrorKind::IoErr)?,
-                BinaryToken::F32_2(x) => write!(writer, "{}", x).map_err(Ck3ErrorKind::IoErr)?,
+                BinaryToken::F32_2(x) if !reencode_float_token => {
+                    write!(writer, "{}", x).map_err(Ck3ErrorKind::IoErr)?
+                }
+                BinaryToken::F32_2(x) => {
+                    write!(writer, "{}", reencode_float(*x)).map_err(Ck3ErrorKind::IoErr)?;
+                    reencode_float_token = false;
+                }
                 BinaryToken::Token(x) => match TokenLookup.resolve(*x) {
                     Some(id) if id == "is_ironman" && in_object == 1 => {
                         let skip = tokens
@@ -163,6 +171,7 @@ impl Melter {
                     }
                     Some(id) => {
                         known_number = in_object == 1 && id == "seed";
+                        reencode_float_token = in_object == 1 && id == "gold";
                         writer.extend_from_slice(&id.as_bytes())
                     }
                     None => {

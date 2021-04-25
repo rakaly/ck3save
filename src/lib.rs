@@ -41,6 +41,7 @@ mod extraction;
 mod melt;
 pub mod models;
 mod tokens;
+mod util;
 
 pub use ck3date::*;
 pub use errors::*;
