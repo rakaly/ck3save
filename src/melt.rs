@@ -147,7 +147,7 @@ impl Melter {
                     let data = x.view_data();
                     writer.extend_from_slice(&data);
                 }
-                BinaryToken::F32_1(x) => write!(writer, "{}", x).map_err(Ck3ErrorKind::IoErr)?,
+                BinaryToken::F32_1(x) => write!(writer, "{:.6}", x).map_err(Ck3ErrorKind::IoErr)?,
                 BinaryToken::F32_2(x) if !reencode_float_token => {
                     write!(writer, "{}", x).map_err(Ck3ErrorKind::IoErr)?
                 }
