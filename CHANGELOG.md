@@ -1,3 +1,8 @@
+## v0.2.3 - 2021-03-14
+
+- Fix incorrect melted gold value
+- Bump internal parser to latest
+
 ## v0.2.2 - 2021-03-14
 
 - Bump internal parser to latest
