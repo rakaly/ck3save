@@ -1,3 +1,7 @@
+## v0.2.4 - 2021-04-26
+
+- Fix additional 64bit floating point values that are melted incorrectly
+
 ## v0.2.3 - 2021-04-25
 
 - Fix incorrect melted gold value
