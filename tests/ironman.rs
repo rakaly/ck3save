@@ -144,14 +144,14 @@ fn decode_and_melt_gold_correctly() -> Result<(), Box<dyn std::error::Error>> {
     );
     assert_eq!(
         character.alive_data.as_ref().and_then(|x| x.gold),
-        Some(133.04398)
+        Some(133.04397)
     );
 
     let (out, _tokens) = ck3save::Melter::new()
         .with_on_failed_resolve(FailedResolveStrategy::Error)
         .melt(&data)?;
 
-    twoway::find_bytes(&out, b"gold=133.04398").unwrap();
+    twoway::find_bytes(&out, b"gold=133.04397").unwrap();
 
     Ok(())
 }

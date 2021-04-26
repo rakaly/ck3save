@@ -1,4 +1,4 @@
-pub(crate) fn reencode_float(f: f32) -> f32 {
+pub(crate) fn reencode_float(f: f64) -> f64 {
     // first reverse the flavor decoding to get raw val
     let f = f * 1000.0;
 
