@@ -120,7 +120,7 @@ impl Melter {
                     if known_number {
                         writer.extend_from_slice(format!("{}", x).as_bytes());
                         known_number = false;
-                    } else if let Some(date) = Ck3Date::from_binary(*x) {
+                    } else if let Some(date) = Ck3Date::from_binary_heuristic(*x) {
                         writer.extend_from_slice(date.game_fmt().as_bytes());
                     } else {
                         writer.extend_from_slice(format!("{}", x).as_bytes());
