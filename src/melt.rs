@@ -152,7 +152,12 @@ impl Melter {
                     write!(writer, "{}", x).map_err(Ck3ErrorKind::IoErr)?
                 }
                 BinaryToken::F64(x) => {
-                    write!(writer, "{}", reencode_float(*x)).map_err(Ck3ErrorKind::IoErr)?;
+                    let x = reencode_float(*x);
+                    if x.fract() > 1e-7 {
+                        write!(writer, "{:.5}", x).map_err(Ck3ErrorKind::IoErr)?;
+                    } else {
+                        write!(writer, "{}", x).map_err(Ck3ErrorKind::IoErr)?;
+                    }
                     reencode_float_token = false;
                 }
                 BinaryToken::Token(x) => match TokenLookup.resolve(*x) {

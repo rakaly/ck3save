@@ -152,6 +152,6 @@ fn decode_and_melt_gold_correctly() -> Result<(), Box<dyn std::error::Error>> {
         .melt(&data)?;
 
     twoway::find_bytes(&out, b"gold=133.04397").unwrap();
-
+    twoway::find_bytes(&out, b"vassal_power_value=200").unwrap();
     Ok(())
 }
