@@ -178,6 +178,8 @@ impl Melter {
                                     | "vassal_power_value"
                                     | "budget_war_chest"
                                     | "budget_short_term"
+                                    | "budget_long_term"
+                                    | "budget_reserved"
                             );
                         writer.extend_from_slice(&id.as_bytes())
                     }
