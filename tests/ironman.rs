@@ -59,6 +59,14 @@ fn test_ck3_binary_autosave() -> Result<(), Box<dyn std::error::Error>> {
     let (save, encoding) = Ck3Extractor::extract_header(&buffer[..])?;
     assert_eq!(encoding, Encoding::Binary);
     assert_eq!(save.meta_data.version, String::from("1.0.2"));
+
+    let (out, _tokens) = ck3save::Melter::new()
+        .with_on_failed_resolve(FailedResolveStrategy::Error)
+        .melt(&buffer)?;
+
+    twoway::find_bytes(&out, b"gold=0.044").unwrap();
+    twoway::find_bytes(&out, b"gold=4.647").unwrap();
+
     Ok(())
 }
 

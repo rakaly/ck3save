@@ -62,6 +62,7 @@ impl Melter {
         let mut token_idx = 0;
         let mut known_number = false;
         let mut reencode_float_token = false;
+        let mut alive_data_index = 0;
         let tokens = tape.tokens();
 
         while let Some(token) = tokens.get(token_idx) {
@@ -102,6 +103,11 @@ impl Melter {
                     if !matches!(tokens.get(*x), Some(BinaryToken::HiddenObject(_))) {
                         writer.push(b'}');
                     }
+
+                    if *x == alive_data_index {
+                        alive_data_index = 0;
+                    }
+
                     let obj = in_objects.pop();
 
                     // The binary parser should already ensure that this will be something, but this is
@@ -175,17 +181,22 @@ impl Melter {
                         continue;
                     }
                     Some(id) => {
+                        if in_object == 1 && id == "alive_data" {
+                            alive_data_index = token_idx + 1;
+                        }
+
                         known_number = in_object == 1 && id == "seed";
                         reencode_float_token = in_object == 1
                             && matches!(
                                 id,
-                                "gold"
-                                    | "vassal_power_value"
+                                "vassal_power_value"
                                     | "budget_war_chest"
                                     | "budget_short_term"
                                     | "budget_long_term"
                                     | "budget_reserved"
                             );
+                        reencode_float_token |=
+                            in_object == 1 && alive_data_index != 0 && id == "gold";
                         writer.extend_from_slice(&id.as_bytes())
                     }
                     None => {
