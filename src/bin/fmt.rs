@@ -20,7 +20,10 @@ where
     W: Write,
 {
     match reader.token() {
-        TextToken::Quoted(_) | TextToken::Unquoted(_) => {
+        TextToken::Unquoted(_) => {
+            let _ = write!(writer, "{}", reader.read_str().unwrap());
+        }
+        TextToken::Quoted(_) => {
             let _ = write!(writer, "\"{}\"", reader.read_str().unwrap());
         }
         TextToken::Array(_) => format_array(reader.read_array().unwrap(), depth + 1, writer),
