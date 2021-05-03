@@ -61,8 +61,10 @@ impl Melter {
         let mut in_object = 1;
         let mut token_idx = 0;
         let mut known_number = false;
+        let mut known_unquote = false;
         let mut reencode_float_token = false;
         let mut alive_data_index = 0;
+        let mut unquote_list_index = 0;
         let tokens = tape.tokens();
 
         while let Some(token) = tokens.get(token_idx) {
@@ -108,6 +110,10 @@ impl Melter {
                         alive_data_index = 0;
                     }
 
+                    if *x == unquote_list_index {
+                        unquote_list_index = 0;
+                    }
+
                     let obj = in_objects.pop();
 
                     // The binary parser should already ensure that this will be something, but this is
@@ -141,7 +147,7 @@ impl Melter {
                     };
 
                     // quoted fields occuring as keys should remain unquoted
-                    if in_object == 1 {
+                    if in_object == 1 || known_unquote {
                         writer.extend_from_slice(&data[..end_idx]);
                     } else {
                         writer.push(b'"');
@@ -185,7 +191,26 @@ impl Melter {
                             alive_data_index = token_idx + 1;
                         }
 
+                        if in_object == 1 && matches!(id, "settings" | "setting" | "perks")
+                            || (id == "perk" && alive_data_index != 0)
+                        {
+                            unquote_list_index = token_idx + 1;
+                        }
+
                         known_number = in_object == 1 && id == "seed";
+                        known_unquote = unquote_list_index != 0
+                            || matches!(
+                                id,
+                                "save_game_version"
+                                    | "portraits_version"
+                                    | "meta_date"
+                                    | "color1"
+                                    | "color2"
+                                    | "color3"
+                                    | "color4"
+                                    | "color5"
+                            );
+
                         reencode_float_token = in_object == 1
                             && matches!(
                                 id,
