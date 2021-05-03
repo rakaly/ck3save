@@ -1,3 +1,14 @@
+## v0.2.6 - 2021-05-03
+
+Significant effort was put into improving the melted output, such that
+CK3 should recognize and continue playing the melted output
+
+- Fix melted output containing quotes when plaintext has no quotes
+- Rewrite save header to declare the melted output is uncompressed plaintext
+- Increase accuracy of decoding 64 bit floats (alternative format) in ironman format
+- Write numbers as integers when ignoring the fractional component would not result in a loss of accuracy
+- Identified additional tokens that use the alternative float format
+
 ## v0.2.5 - 2021-04-29
 
 - Update to latest parser API
