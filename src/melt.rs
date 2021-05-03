@@ -263,7 +263,14 @@ impl Melter {
             let split_ind = data.iter().position(|&x| x == b'\n').unwrap_or(0);
             let at = std::cmp::max(split_ind, 0);
             let (header, rest) = data.split_at(at + 1);
-            result.extend_from_slice(header);
+            let mut mutted = header.to_vec();
+            // Set the type to 0, type list:
+            // 0: Uncompressed + Plaintext
+            // 1: Uncompressed + Binary
+            // 2: Compressed + Plaintext
+            // 3: Compressed + Binary
+            mutted["SAV010".len()] = b'0';
+            result.extend_from_slice(&mutted);
             rest
         } else {
             data
