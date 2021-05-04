@@ -65,6 +65,7 @@ impl Melter {
         let mut reencode_float_token = false;
         let mut alive_data_index = 0;
         let mut unquote_list_index = 0;
+        let mut ai_strategies_index = 0;
         let tokens = tape.tokens();
 
         while let Some(token) = tokens.get(token_idx) {
@@ -114,6 +115,10 @@ impl Melter {
                         unquote_list_index = 0;
                     }
 
+                    if *x == ai_strategies_index {
+                        ai_strategies_index = 0;
+                    }
+
                     let obj = in_objects.pop();
 
                     // The binary parser should already ensure that this will be something, but this is
@@ -129,7 +134,7 @@ impl Melter {
                 BinaryToken::U32(x) => writer.extend_from_slice(format!("{}", x).as_bytes()),
                 BinaryToken::U64(x) => writer.extend_from_slice(format!("{}", x).as_bytes()),
                 BinaryToken::I32(x) => {
-                    if known_number {
+                    if known_number || ai_strategies_index != 0 {
                         writer.extend_from_slice(format!("{}", x).as_bytes());
                         known_number = false;
                     } else if let Some(date) = Ck3Date::from_binary_heuristic(*x) {
@@ -189,6 +194,10 @@ impl Melter {
                     Some(id) => {
                         if in_object == 1 && id == "alive_data" {
                             alive_data_index = token_idx + 1;
+                        }
+
+                        if in_object == 1 && id == "ai_strategies" {
+                            ai_strategies_index = token_idx + 1;
                         }
 
                         if in_object == 1 && matches!(id, "settings" | "setting" | "perks")
