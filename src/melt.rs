@@ -197,7 +197,8 @@ impl Melter {
                             unquote_list_index = token_idx + 1;
                         }
 
-                        known_number = in_object == 1 && id == "seed";
+                        known_number = in_object == 1 && (id == "seed" || id == "random_count");
+
                         known_unquote = unquote_list_index != 0
                             || matches!(
                                 id,
