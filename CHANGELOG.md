@@ -1,3 +1,7 @@
+## v0.2.7 - 2021-05-03
+
+- Additional bugfixes to the melted output preventing CK3 from loading the game 
+
 ## v0.2.6 - 2021-05-03
 
 Significant effort was put into improving the melted output, such that
