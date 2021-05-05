@@ -66,6 +66,8 @@ impl Melter {
         let mut alive_data_index = 0;
         let mut unquote_list_index = 0;
         let mut ai_strategies_index = 0;
+        let mut metadata_index = 0;
+
         let tokens = tape.tokens();
 
         while let Some(token) = tokens.get(token_idx) {
@@ -117,6 +119,19 @@ impl Melter {
 
                     if *x == ai_strategies_index {
                         ai_strategies_index = 0;
+                    }
+
+                    if *x == metadata_index {
+                        metadata_index = 0;
+                        if writer.len() >= 24 && &writer[0..3] == b"SAV" {
+                            // If the header line is present, we will update
+                            // the metadata length in bytes which is the last
+                            // 8 bytes of the header line. The header line
+                            // should be 24 in length
+                            let new_size = format!("{:08x}", writer.len() - 24);
+                            let ns = new_size.as_bytes();
+                            writer[23 - ns.len()..23].copy_from_slice(ns);
+                        }
                     }
 
                     let obj = in_objects.pop();
@@ -192,6 +207,10 @@ impl Melter {
                         continue;
                     }
                     Some(id) => {
+                        if in_object == 1 && id == "meta_data" {
+                            metadata_index = token_idx + 1;
+                        }
+
                         if in_object == 1 && id == "alive_data" {
                             alive_data_index = token_idx + 1;
                         }
