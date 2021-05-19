@@ -1,4 +1,4 @@
-SAV01001745060f0000663d
+SAV01001745060f00006631
 meta_data={
  save_game_version=3
  version="1.0.2"
@@ -400,5 +400,4 @@ meta_data={
   settings={ normal_difficulty ai_significant_exclave_independence default_multiplayer_murder_schemes default_minor_disease_frequency default_gender_equality default_regional_heresy default_mongol_invasion default_casus_belli_costs default_culture_conversion_speed default_faith_conversion_speed default_diplomatic_range 1453_end_date on_limited_de_jure_requirement on_custom_kingdoms on_generate_families default_same_sex_relations sexuality_distribution_default default_faith_acceptance randomized_faiths_off random_ruler_placement_off default_nudity launch_historical }
  }
  can_get_achievements=yes
- ironman=yes
-}
+ }
