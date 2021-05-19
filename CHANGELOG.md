@@ -1,3 +1,9 @@
+## v0.2.8 - 2021-05-18
+
+- When melting, rewrite save header line with new metadata size
+- Omit carriage return when writing melted output
+- Allow preservation of ironman fields in melted output with rewrite config
+
 ## v0.2.7 - 2021-05-03
 
 - Additional bugfixes to the melted output preventing CK3 from loading the game 
