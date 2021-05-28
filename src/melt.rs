@@ -3,11 +3,28 @@ use crate::{
     detect_encoding, tokens::TokenLookup, BodyEncoding, Ck3Date, Ck3Error, Ck3ErrorKind,
     Extraction, FailedResolveStrategy,
 };
-use jomini::{BinaryTape, BinaryToken, TokenResolver};
+use jomini::{BinaryTape, BinaryToken, TextWriterBuilder, TokenResolver, WriteVisitor};
 use std::{
     collections::HashSet,
     io::{Cursor, Read, Write},
 };
+
+struct Ck3Visitor;
+impl WriteVisitor for Ck3Visitor {
+    fn visit_f32<W>(&self, mut writer: W, data: f32) -> Result<(), jomini::Error>
+    where
+        W: Write,
+    {
+        write!(writer, "{:.6}", data).map_err(|e| e.into())
+    }
+
+    fn visit_f64<W>(&self, mut writer: W, data: f64) -> Result<(), jomini::Error>
+    where
+        W: Write,
+    {
+        write!(writer, "{:.5}", data).map_err(|e| e.into())
+    }
+}
 
 /// Convert a binary gamestate to plaintext
 ///
@@ -67,9 +84,7 @@ impl Melter {
         unknown_tokens: &mut HashSet<u16>,
     ) -> Result<(), Ck3Error> {
         let tape = BinaryTape::from_ck3(input)?;
-        let mut depth = 0;
-        let mut in_objects: Vec<i32> = Vec::new();
-        let mut in_object = 1;
+        let mut wtr = TextWriterBuilder::new().from_writer_visitor(writer, Ck3Visitor);
         let mut token_idx = 0;
         let mut known_number = false;
         let mut known_unquote = false;
@@ -82,42 +97,19 @@ impl Melter {
         let tokens = tape.tokens();
 
         while let Some(token) = tokens.get(token_idx) {
-            let mut did_change = false;
-            if in_object == 1 {
-                let depth = match token {
-                    BinaryToken::End(_) => depth - 1,
-                    _ => depth,
-                };
-
-                for _ in 0..depth {
-                    writer.push(b' ');
-                }
-            }
-
             match token {
                 BinaryToken::Object(_) => {
-                    did_change = true;
-                    writer.extend_from_slice(b"{\n");
-                    depth += 1;
-                    in_objects.push(in_object);
-                    in_object = 1;
+                    wtr.write_object_start()?;
                 }
                 BinaryToken::HiddenObject(_) => {
-                    did_change = true;
-                    depth += 1;
-                    in_objects.push(in_object);
-                    in_object = 1;
+                    wtr.write_object_start()?;
                 }
                 BinaryToken::Array(_) => {
-                    did_change = true;
-                    writer.push(b'{');
-                    depth += 1;
-                    in_objects.push(in_object);
-                    in_object = 0;
+                    wtr.write_array_start()?;
                 }
                 BinaryToken::End(x) => {
                     if !matches!(tokens.get(*x), Some(BinaryToken::HiddenObject(_))) {
-                        writer.push(b'}');
+                        wtr.write_end()?;
                     }
 
                     if *x == alive_data_index {
@@ -134,72 +126,52 @@ impl Melter {
 
                     if *x == metadata_index {
                         metadata_index = 0;
-                        if writer.len() >= 24 && &writer[0..3] == b"SAV" {
+                        let data = wtr.inner();
+
+                        if data.len() >= 24 && &data[0..3] == b"SAV" {
                             // If the header line is present, we will update
                             // the metadata length in bytes which is the last
                             // 8 bytes of the header line. The header line
                             // should be 24 in length
-                            let new_size = format!("{:08x}", writer.len() - 24);
+                            let new_size = format!("{:08x}", data.len() - 24);
                             let ns = new_size.as_bytes();
-                            writer[23 - ns.len()..23].copy_from_slice(ns);
+                            data[23 - ns.len()..23].copy_from_slice(ns);
                         }
                     }
-
-                    let obj = in_objects.pop();
-
-                    // The binary parser should already ensure that this will be something, but this is
-                    // just a sanity check
-                    debug_assert!(obj.is_some());
-                    in_object = obj.unwrap_or(1);
-                    depth -= 1;
                 }
-                BinaryToken::Bool(x) => match x {
-                    true => writer.extend_from_slice(b"yes"),
-                    false => writer.extend_from_slice(b"no"),
-                },
-                BinaryToken::U32(x) => writer.extend_from_slice(format!("{}", x).as_bytes()),
-                BinaryToken::U64(x) => writer.extend_from_slice(format!("{}", x).as_bytes()),
+                BinaryToken::Bool(x) => wtr.write_bool(*x)?,
+                BinaryToken::U32(x) => wtr.write_u32(*x)?,
+                BinaryToken::U64(x) => wtr.write_u64(*x)?,
                 BinaryToken::I32(x) => {
                     if known_number || ai_strategies_index != 0 {
-                        writer.extend_from_slice(format!("{}", x).as_bytes());
+                        write!(wtr, "{}", x)?;
                         known_number = false;
                     } else if let Some(date) = Ck3Date::from_binary_heuristic(*x) {
-                        writer.extend_from_slice(date.game_fmt().as_bytes());
+                        wtr.write_date(date)?;
                     } else {
-                        writer.extend_from_slice(format!("{}", x).as_bytes());
+                        write!(wtr, "{}", x)?;
                     }
                 }
                 BinaryToken::Quoted(x) => {
-                    let data = x.view_data();
-                    let end_idx = match data.last() {
-                        Some(x) if *x == b'\n' => data.len() - 1,
-                        Some(_x) => data.len(),
-                        None => data.len(),
-                    };
-
-                    // quoted fields occuring as keys should remain unquoted
-                    if in_object == 1 || known_unquote {
-                        writer.extend_from_slice(&data[..end_idx]);
+                    if known_unquote {
+                        wtr.write_unquoted(x.view_data())?;
                     } else {
-                        writer.push(b'"');
-                        writer.extend_from_slice(&data[..end_idx]);
-                        writer.push(b'"');
+                        wtr.write_quoted(x.view_data())?;
                     }
                 }
                 BinaryToken::Unquoted(x) => {
-                    let data = x.view_data();
-                    writer.extend_from_slice(&data);
+                    wtr.write_unquoted(x.view_data())?;
                 }
-                BinaryToken::F32(x) => write!(writer, "{:.6}", x).map_err(Ck3ErrorKind::IoErr)?,
+                BinaryToken::F32(x) => wtr.write_f32(*x)?,
                 BinaryToken::F64(x) if !reencode_float_token => {
-                    write!(writer, "{}", x).map_err(Ck3ErrorKind::IoErr)?
+                    write!(wtr, "{}", x)?;
                 }
                 BinaryToken::F64(x) => {
                     let x = reencode_float(*x);
                     if x.fract() > 1e-7 {
-                        write!(writer, "{:.5}", x).map_err(Ck3ErrorKind::IoErr)?;
+                        write!(wtr, "{:.5}", x)?;
                     } else {
-                        write!(writer, "{}", x).map_err(Ck3ErrorKind::IoErr)?;
+                        write!(wtr, "{}", x)?;
                     }
                     reencode_float_token = false;
                 }
@@ -207,7 +179,7 @@ impl Melter {
                     Some(id)
                         if self.rewrite
                             && matches!(id, "ironman" | "ironman_manager")
-                            && in_object == 1 =>
+                            && wtr.expecting_key() =>
                     {
                         let skip = tokens
                             .get(token_idx + 1)
@@ -222,25 +194,25 @@ impl Melter {
                         continue;
                     }
                     Some(id) => {
-                        if in_object == 1 && id == "meta_data" {
+                        if id == "meta_data" {
                             metadata_index = token_idx + 1;
                         }
 
-                        if in_object == 1 && id == "alive_data" {
+                        if id == "alive_data" {
                             alive_data_index = token_idx + 1;
                         }
 
-                        if in_object == 1 && id == "ai_strategies" {
+                        if id == "ai_strategies" {
                             ai_strategies_index = token_idx + 1;
                         }
 
-                        if in_object == 1 && matches!(id, "settings" | "setting" | "perks")
+                        if matches!(id, "settings" | "setting" | "perks")
                             || (id == "perk" && alive_data_index != 0)
                         {
                             unquote_list_index = token_idx + 1;
                         }
 
-                        known_number = in_object == 1 && (id == "seed" || id == "random_count");
+                        known_number = id == "seed" || id == "random_count";
 
                         known_unquote = unquote_list_index != 0
                             || matches!(
@@ -255,18 +227,16 @@ impl Melter {
                                     | "color5"
                             );
 
-                        reencode_float_token = in_object == 1
-                            && matches!(
-                                id,
-                                "vassal_power_value"
-                                    | "budget_war_chest"
-                                    | "budget_short_term"
-                                    | "budget_long_term"
-                                    | "budget_reserved"
-                            );
-                        reencode_float_token |=
-                            in_object == 1 && alive_data_index != 0 && id == "gold";
-                        writer.extend_from_slice(&id.as_bytes())
+                        reencode_float_token = matches!(
+                            id,
+                            "vassal_power_value"
+                                | "budget_war_chest"
+                                | "budget_short_term"
+                                | "budget_long_term"
+                                | "budget_reserved"
+                        );
+                        reencode_float_token |= alive_data_index != 0 && id == "gold";
+                        wtr.write_unquoted(id.as_bytes())?;
                     }
                     None => {
                         unknown_tokens.insert(*x);
@@ -274,7 +244,7 @@ impl Melter {
                             FailedResolveStrategy::Error => {
                                 return Err(Ck3ErrorKind::UnknownToken { token_id: *x }.into());
                             }
-                            FailedResolveStrategy::Ignore if in_object == 1 => {
+                            FailedResolveStrategy::Ignore if wtr.expecting_key() => {
                                 let skip = tokens
                                     .get(token_idx + 1)
                                     .map(|next_token| match next_token {
@@ -288,29 +258,19 @@ impl Melter {
                                 continue;
                             }
                             _ => {
-                                let unknown = format!("__unknown_0x{:x}", x);
-                                writer.extend_from_slice(unknown.as_bytes());
+                                write!(wtr, "__unknown_0x{:x}", x)?;
                             }
                         }
                     }
                 },
                 BinaryToken::Rgb(color) => {
-                    writer.extend_from_slice(b"rgb {");
-                    writer.extend_from_slice(format!("{} ", color.r).as_bytes());
-                    writer.extend_from_slice(format!("{} ", color.g).as_bytes());
-                    writer.extend_from_slice(format!("{}", color.b).as_bytes());
-                    writer.push(b'}');
+                    wtr.write_header(b"rgb")?;
+                    wtr.write_array_start()?;
+                    wtr.write_u32(color.r)?;
+                    wtr.write_u32(color.g)?;
+                    wtr.write_u32(color.b)?;
+                    wtr.write_end()?;
                 }
-            }
-
-            if !did_change && in_object == 1 {
-                writer.push(b'=');
-                in_object = 2;
-            } else if in_object == 2 {
-                in_object = 1;
-                writer.push(b'\n');
-            } else if in_object != 1 {
-                writer.push(b' ');
             }
 
             token_idx += 1;
