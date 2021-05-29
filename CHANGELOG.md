@@ -1,3 +1,8 @@
+## v0.2.9 - 2021-05-28
+
+- Melt with tabs instead of spaces
+- Melted quoted values are now escaped as needed
+
 ## v0.2.8 - 2021-05-18
 
 - When melting, rewrite save header line with new metadata size
