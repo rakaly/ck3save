@@ -84,7 +84,9 @@ impl Melter {
         unknown_tokens: &mut HashSet<u16>,
     ) -> Result<(), Ck3Error> {
         let tape = BinaryTape::from_ck3(input)?;
-        let mut wtr = TextWriterBuilder::new().from_writer_visitor(writer, Ck3Visitor);
+        let mut wtr = TextWriterBuilder::new()
+            .indent_char(b'\t')
+            .indent_factor(1).from_writer_visitor(writer, Ck3Visitor);
         let mut token_idx = 0;
         let mut known_number = false;
         let mut known_unquote = false;
