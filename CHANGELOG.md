@@ -1,3 +1,7 @@
+## v0.2.10 - 2021-05-29
+
+- Fix large file size of melted output caused by an increasingly large indent from not properly accounting hidden objects
+
 ## v0.2.9 - 2021-05-28
 
 - Melt with tabs instead of spaces
