@@ -1,7 +1,7 @@
 use crate::util::reencode_float;
 use crate::{
     detect_encoding, tokens::TokenLookup, BodyEncoding, Ck3Date, Ck3Error, Ck3ErrorKind,
-    Extraction, FailedResolveStrategy,
+    Extraction, FailedResolveStrategy, PdsDate
 };
 use jomini::{BinaryTape, BinaryToken, TextWriterBuilder, TokenResolver, WriteVisitor};
 use std::{
@@ -149,7 +149,7 @@ impl Melter {
                         write!(wtr, "{}", x)?;
                         known_number = false;
                     } else if let Some(date) = Ck3Date::from_binary_heuristic(*x) {
-                        wtr.write_date(date)?;
+                        wtr.write_date(date.game_fmt())?;
                     } else {
                         write!(wtr, "{}", x)?;
                     }

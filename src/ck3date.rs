@@ -1,1 +1,2 @@
-pub type Ck3Date = jomini::common::Date;
+pub use jomini::common::Date as Ck3Date;
+pub use jomini::common::PdsDate;
