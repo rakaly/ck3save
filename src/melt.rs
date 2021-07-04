@@ -156,13 +156,13 @@ impl Melter {
                 }
                 BinaryToken::Quoted(x) => {
                     if known_unquote {
-                        wtr.write_unquoted(x.view_data())?;
+                        wtr.write_unquoted(x.as_bytes())?;
                     } else {
-                        wtr.write_quoted(x.view_data())?;
+                        wtr.write_quoted(x.as_bytes())?;
                     }
                 }
                 BinaryToken::Unquoted(x) => {
-                    wtr.write_unquoted(x.view_data())?;
+                    wtr.write_unquoted(x.as_bytes())?;
                 }
                 BinaryToken::F32(x) => wtr.write_f32(*x)?,
                 BinaryToken::F64(x) if !reencode_float_token => {
