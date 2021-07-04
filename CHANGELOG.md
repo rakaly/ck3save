@@ -1,3 +1,7 @@
+## v0.2.11 - 2021-07-04
+
+- Fix improper melted output when a name ended with a quote
+
 ## v0.2.10 - 2021-05-29
 
 - Fix large file size of melted output caused by an increasingly large indent from not properly accounting hidden objects
