@@ -167,6 +167,28 @@ fn melt_patch14() -> Result<(), Box<dyn std::error::Error>> {
         .with_on_failed_resolve(FailedResolveStrategy::Error)
         .melt(&data)?;
 
-    assert_eq!(out, expected);
+    assert!(eq(&out, &expected), "patch 1.4 did not melt currently");
     Ok(())
+}
+
+#[test]
+fn melt_patch15() -> Result<(), Box<dyn std::error::Error>> {
+    let data = utils::request("ck3-1.5-normal.ck3");
+    let expected = utils::request_zip("ck3-1.5-normal_melted.zip");
+    let (out, _tokens) = ck3save::Melter::new()
+        .with_on_failed_resolve(FailedResolveStrategy::Error)
+        .melt(&data)?;
+
+    assert!(eq(&out, &expected), "patch 1.5 did not melt currently");
+    Ok(())
+}
+
+fn eq(a: &[u8], b: &[u8]) -> bool {
+    for (ai, bi) in a.iter().zip(b.iter()) {
+        if ai != bi {
+            return false;
+        }
+    }
+
+    a.len() == b.len()
 }

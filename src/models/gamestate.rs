@@ -1,5 +1,5 @@
 use super::MetadataOwned;
-use crate::util::reencode_float;
+use crate::flavor::reencode_float;
 use serde::{Deserialize, Deserializer};
 use std::collections::HashMap;
 
