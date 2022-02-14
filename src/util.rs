@@ -8,7 +8,7 @@ pub(crate) fn reencode_float(f: f64) -> f64 {
     // using 32 bits epsilon was the only way I could get equivalent plaintext
     // and binary saves to agree on reencoded float values.
     let eps = f64::from(f32::EPSILON);
-    let num = (f / 32768.0 * 100_000.0 + eps).trunc();
+    let num = (f / 32768.0 * 100_000.0 + (eps * f.signum())).trunc();
     num / 100_000.0
 }
 
@@ -33,5 +33,14 @@ mod tests {
         let f = flavor.visit_f64(data);
         let newf = reencode_float(f);
         assert_eq!(newf, 1.50799);
+    }
+
+    #[test]
+    fn reencode_accuracy_3() {
+        let data: [u8; 8] = [0, 0, 81, 255, 255, 255, 255, 255];
+        let flavor = Ck3Flavor::default();
+        let f = flavor.visit_f64(data);
+        let newf = reencode_float(f);
+        assert_eq!(newf, -350.0);
     }
 }

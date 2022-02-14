@@ -1,4 +1,5 @@
 use std::fs;
+use std::io::{Cursor, Read};
 use std::path::Path;
 
 /// Fetch an ck3 save file. Save files can be quite large, so the save files are not stored in the
@@ -31,4 +32,14 @@ pub fn request<S: AsRef<str>>(input: S) -> Vec<u8> {
             data
         }
     }
+}
+
+pub fn request_zip<S: AsRef<str>>(input: S) -> Vec<u8> {
+    let data = request(input);
+    let reader = Cursor::new(&data[..]);
+    let mut zip = zip::ZipArchive::new(reader).unwrap();
+    let mut zip_file = zip.by_index(0).unwrap();
+    let mut buffer = Vec::with_capacity(0);
+    zip_file.read_to_end(&mut buffer).unwrap();
+    buffer
 }

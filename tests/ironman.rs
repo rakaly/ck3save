@@ -1,6 +1,6 @@
 #![cfg(ironman)]
 use ck3save::{Ck3Extractor, Encoding, FailedResolveStrategy};
-use std::io::{Cursor, Read};
+use std::io::Cursor;
 
 mod utils;
 
@@ -44,12 +44,7 @@ fn test_ck3_binary_save_header_borrowed() {
 
 #[test]
 fn test_ck3_binary_autosave() -> Result<(), Box<dyn std::error::Error>> {
-    let data = utils::request("autosave.zip");
-    let reader = Cursor::new(&data[..]);
-    let mut zip = zip::ZipArchive::new(reader).unwrap();
-    let mut zip_file = zip.by_index(0).unwrap();
-    let mut buffer = Vec::with_capacity(0);
-    zip_file.read_to_end(&mut buffer).unwrap();
+    let buffer = utils::request_zip("autosave.zip");
 
     let reader = Cursor::new(&buffer[..]);
     let (save, encoding) = Ck3Extractor::extract_save(reader)?;
@@ -161,5 +156,17 @@ fn decode_and_melt_gold_correctly() -> Result<(), Box<dyn std::error::Error>> {
 
     twoway::find_bytes(&out, b"gold=133.04397").unwrap();
     twoway::find_bytes(&out, b"vassal_power_value=200").unwrap();
+    Ok(())
+}
+
+#[test]
+fn melt_patch14() -> Result<(), Box<dyn std::error::Error>> {
+    let data = utils::request("ck3-1.4-normal.ck3");
+    let expected = utils::request_zip("ck3-1.4-normal_melted.zip");
+    let (out, _tokens) = ck3save::Melter::new()
+        .with_on_failed_resolve(FailedResolveStrategy::Error)
+        .melt(&data)?;
+
+    assert_eq!(out, expected);
     Ok(())
 }

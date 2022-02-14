@@ -1,7 +1,7 @@
 use crate::util::reencode_float;
 use crate::{
     detect_encoding, tokens::TokenLookup, BodyEncoding, Ck3Date, Ck3Error, Ck3ErrorKind,
-    Extraction, FailedResolveStrategy, PdsDate
+    Extraction, FailedResolveStrategy, PdsDate,
 };
 use jomini::{BinaryTape, BinaryToken, TextWriterBuilder, TokenResolver, WriteVisitor};
 use std::{
@@ -86,7 +86,8 @@ impl Melter {
         let tape = BinaryTape::from_ck3(input)?;
         let mut wtr = TextWriterBuilder::new()
             .indent_char(b'\t')
-            .indent_factor(1).from_writer_visitor(writer, Ck3Visitor);
+            .indent_factor(1)
+            .from_writer_visitor(writer, Ck3Visitor);
         let mut token_idx = 0;
         let mut known_number = false;
         let mut known_unquote = false;
@@ -96,17 +97,23 @@ impl Melter {
         let mut ai_strategies_index = 0;
         let mut metadata_index = 0;
 
+        // We use this to know if we are looking at a key of `ai_strategies`
+        // which is always written out as a number and not a date
+        let mut end_indices = Vec::new();
+
         let tokens = tape.tokens();
 
         while let Some(token) = tokens.get(token_idx) {
             match token {
                 BinaryToken::Object(_) => {
+                    end_indices.push(token_idx);
                     wtr.write_object_start()?;
                 }
                 BinaryToken::HiddenObject(_) => {
                     wtr.write_hidden_object_start()?;
                 }
                 BinaryToken::Array(_) => {
+                    end_indices.push(token_idx);
                     wtr.write_array_start()?;
                 }
                 BinaryToken::End(x) => {
@@ -114,6 +121,7 @@ impl Melter {
                         wtr.write_end()?;
                     }
 
+                    end_indices.pop();
                     if *x == alive_data_index {
                         alive_data_index = 0;
                     }
@@ -145,7 +153,11 @@ impl Melter {
                 BinaryToken::U32(x) => wtr.write_u32(*x)?,
                 BinaryToken::U64(x) => wtr.write_u64(*x)?,
                 BinaryToken::I32(x) => {
-                    if known_number || ai_strategies_index != 0 {
+                    if known_number
+                        || (end_indices
+                            .last()
+                            .map_or(false, |&x| x == ai_strategies_index))
+                    {
                         write!(wtr, "{}", x)?;
                         known_number = false;
                     } else if let Some(date) = Ck3Date::from_binary_heuristic(*x) {
@@ -170,7 +182,7 @@ impl Melter {
                 }
                 BinaryToken::F64(x) => {
                     let x = reencode_float(*x);
-                    if x.fract() > 1e-7 {
+                    if x.fract().abs() > 1e-6 {
                         write!(wtr, "{:.5}", x)?;
                     } else {
                         write!(wtr, "{}", x)?;
@@ -236,6 +248,7 @@ impl Melter {
                                 | "budget_short_term"
                                 | "budget_long_term"
                                 | "budget_reserved"
+                                | "damage_last_tick"
                         );
                         reencode_float_token |= alive_data_index != 0 && id == "gold";
                         wtr.write_unquoted(id.as_bytes())?;
