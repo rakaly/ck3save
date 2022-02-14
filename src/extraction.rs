@@ -138,7 +138,7 @@ impl Ck3ExtractorBuilder {
     where
         T: Deserialize<'de>,
     {
-        let data = skip_save_prefix(&data);
+        let data = skip_save_prefix(data);
         let mut cursor = Cursor::new(data);
         let offset = match detect_encoding(&mut cursor)? {
             BodyEncoding::Plain => data.len(),
@@ -234,7 +234,7 @@ impl Ck3Extractor {
 }
 
 fn melt_in_memory<T, R>(
-    mut buffer: &mut Vec<u8>,
+    buffer: &mut Vec<u8>,
     name: &'static str,
     zip: &mut zip::ZipArchive<R>,
     on_failed_resolve: FailedResolveStrategy,
@@ -255,20 +255,20 @@ where
 
     buffer.reserve(zip_file.size() as usize);
     zip_file
-        .read_to_end(&mut buffer)
+        .read_to_end(buffer)
         .map_err(|e| Ck3ErrorKind::ZipExtraction(name, e))?;
 
-    if sniff_is_binary(&buffer) {
+    if sniff_is_binary(buffer) {
         let res = BinaryDeserializer::ck3_builder()
             .on_failed_resolve(on_failed_resolve)
-            .from_slice(&buffer, &TokenLookup)
+            .from_slice(buffer, &TokenLookup)
             .map_err(|e| Ck3ErrorKind::Deserialize {
                 part: Some(name.to_string()),
                 err: e,
             })?;
         Ok((res, Encoding::BinaryZip))
     } else {
-        let res = TextDeserializer::from_utf8_slice(&buffer)?;
+        let res = TextDeserializer::from_utf8_slice(buffer)?;
         Ok((res, Encoding::TextZip))
     }
 }
@@ -300,14 +300,14 @@ where
     if sniff_is_binary(buffer) {
         let res = BinaryDeserializer::ck3_builder()
             .on_failed_resolve(on_failed_resolve)
-            .from_slice(&buffer, &TokenLookup)
+            .from_slice(buffer, &TokenLookup)
             .map_err(|e| Ck3ErrorKind::Deserialize {
                 part: Some(name.to_string()),
                 err: e,
             })?;
         Ok((res, Encoding::BinaryZip))
     } else {
-        let res = TextDeserializer::from_utf8_slice(&buffer)?;
+        let res = TextDeserializer::from_utf8_slice(buffer)?;
         Ok((res, Encoding::TextZip))
     }
 }
