@@ -315,7 +315,7 @@ where
 }
 
 #[cfg(feature = "mmap")]
-fn melt_with_temporary<T, R>(
+fn melt_with_temporary<T, R, Q>(
     name: &'static str,
     zip: &mut zip::ZipArchive<R>,
     on_failed_resolve: FailedResolveStrategy,
