@@ -38,11 +38,12 @@ In short, to know what the save file format:
 */
 
 use crate::{
+    flavor::flavor_from_tape,
     models::{Gamestate, HeaderBorrowed, HeaderOwned},
     tokens::TokenLookup,
     Ck3Error, Ck3ErrorKind, FailedResolveStrategy,
 };
-use jomini::{BinaryDeserializer, TextDeserializer};
+use jomini::{BinaryDeserializer, BinaryTape, TextDeserializer, TokenResolver};
 use serde::de::{Deserialize, DeserializeOwned};
 use std::io::{Cursor, Read, Seek, SeekFrom};
 use zip::{result::ZipError, ZipArchive};
@@ -134,9 +135,14 @@ impl Ck3ExtractorBuilder {
     }
 
     /// Extract the header from the save as a custom type
-    pub fn extract_header_as<'de, T>(&self, data: &'de [u8]) -> Result<(T, Encoding), Ck3Error>
+    pub fn extract_header_with_tokens_as<'de, T, Q>(
+        &self,
+        data: &'de [u8],
+        resolver: &'de Q,
+    ) -> Result<(T, Encoding), Ck3Error>
     where
         T: Deserialize<'de>,
+        Q: TokenResolver,
     {
         let data = skip_save_prefix(data);
         let mut cursor = Cursor::new(data);
@@ -153,15 +159,25 @@ impl Ck3ExtractorBuilder {
             } else {
                 Encoding::Binary
             };
-            let res = BinaryDeserializer::ck3_builder()
+            let tape = BinaryTape::from_slice(data)?;
+            let flavor = flavor_from_tape(&tape);
+            let res = BinaryDeserializer::builder_flavor(flavor)
                 .on_failed_resolve(self.on_failed_resolve)
-                .from_slice(data, &TokenLookup)?;
+                .from_tape(&tape, resolver)?;
             Ok((res, encoding))
         } else {
             // allow uncompressed text as TextZip even though the game doesn't produce said format
             let res = TextDeserializer::from_utf8_slice(data)?;
             Ok((res, Encoding::TextZip))
         }
+    }
+
+    /// Extract the header from the save as a custom type
+    pub fn extract_header_as<'de, T>(&self, data: &'de [u8]) -> Result<(T, Encoding), Ck3Error>
+    where
+        T: Deserialize<'de>,
+    {
+        self.extract_header_with_tokens_as(data, &TokenLookup)
     }
 
     /// Extract all info from a save
@@ -173,10 +189,15 @@ impl Ck3ExtractorBuilder {
     }
 
     /// Extract all info from a save as a custom type
-    pub fn extract_save_as<T, R>(&self, mut reader: R) -> Result<(T, Encoding), Ck3Error>
+    pub fn extract_save_with_tokens_as<T, R, Q>(
+        &self,
+        mut reader: R,
+        resolver: &Q,
+    ) -> Result<(T, Encoding), Ck3Error>
     where
         R: Read + Seek,
         T: DeserializeOwned,
+        Q: TokenResolver,
     {
         let mut buffer = Vec::new();
         match detect_encoding(&mut reader)? {
@@ -191,21 +212,36 @@ impl Ck3ExtractorBuilder {
                 reader.read_to_end(&mut buffer)?;
 
                 let data = skip_save_prefix(&buffer);
-                let res = BinaryDeserializer::ck3_builder()
+                let tape = BinaryTape::from_slice(data)?;
+                let flavor = flavor_from_tape(&tape);
+                let res = BinaryDeserializer::builder_flavor(flavor)
                     .on_failed_resolve(self.on_failed_resolve)
-                    .from_slice(data, &TokenLookup)?;
+                    .from_tape(&tape, resolver)?;
                 Ok((res, Encoding::Binary))
             }
             BodyEncoding::Zip(mut zip) => match self.extraction {
-                Extraction::InMemory => {
-                    melt_in_memory(&mut buffer, "gamestate", &mut zip, self.on_failed_resolve)
-                }
+                Extraction::InMemory => melt_in_memory(
+                    &mut buffer,
+                    "gamestate",
+                    &mut zip,
+                    self.on_failed_resolve,
+                    resolver,
+                ),
                 #[cfg(feature = "mmap")]
                 Extraction::MmapTemporaries => {
-                    melt_with_temporary("gamestate", &mut zip, self.on_failed_resolve)
+                    melt_with_temporary("gamestate", &mut zip, self.on_failed_resolve, resolver)
                 }
             },
         }
+    }
+
+    /// Extract all info from a save as a custom type
+    pub fn extract_save_as<T, R>(&self, reader: R) -> Result<(T, Encoding), Ck3Error>
+    where
+        R: Read + Seek,
+        T: DeserializeOwned,
+    {
+        self.extract_save_with_tokens_as(reader, &TokenLookup)
     }
 }
 
@@ -233,15 +269,17 @@ impl Ck3Extractor {
     }
 }
 
-fn melt_in_memory<T, R>(
+fn melt_in_memory<T, R, Q>(
     buffer: &mut Vec<u8>,
     name: &'static str,
     zip: &mut zip::ZipArchive<R>,
     on_failed_resolve: FailedResolveStrategy,
+    resolver: &Q,
 ) -> Result<(T, Encoding), Ck3Error>
 where
     R: Read + Seek,
     T: DeserializeOwned,
+    Q: TokenResolver,
 {
     buffer.clear();
     let mut zip_file = zip
@@ -259,13 +297,16 @@ where
         .map_err(|e| Ck3ErrorKind::ZipExtraction(name, e))?;
 
     if sniff_is_binary(buffer) {
-        let res = BinaryDeserializer::ck3_builder()
+        let tape = BinaryTape::from_slice(buffer)?;
+        let flavor = flavor_from_tape(&tape);
+        let res = BinaryDeserializer::builder_flavor(flavor)
             .on_failed_resolve(on_failed_resolve)
-            .from_slice(buffer, &TokenLookup)
+            .from_tape(&tape, resolver)
             .map_err(|e| Ck3ErrorKind::Deserialize {
                 part: Some(name.to_string()),
                 err: e,
             })?;
+
         Ok((res, Encoding::BinaryZip))
     } else {
         let res = TextDeserializer::from_utf8_slice(buffer)?;
@@ -278,10 +319,12 @@ fn melt_with_temporary<T, R>(
     name: &'static str,
     zip: &mut zip::ZipArchive<R>,
     on_failed_resolve: FailedResolveStrategy,
+    resolver: &Q,
 ) -> Result<(T, Encoding), Ck3Error>
 where
     R: Read + Seek,
     T: DeserializeOwned,
+    Q: TokenResolver,
 {
     let mut zip_file = zip
         .by_name(name)
@@ -298,9 +341,11 @@ where
     let buffer = &mmap[..];
 
     if sniff_is_binary(buffer) {
-        let res = BinaryDeserializer::ck3_builder()
+        let tape = BinaryTape::from_slice(buffer)?;
+        let flavor = flavor_from_tape(&tape);
+        let res = BinaryDeserializer::builder_flavor(flavor)
             .on_failed_resolve(on_failed_resolve)
-            .from_slice(buffer, &TokenLookup)
+            .from_tape(&tape, resolver)
             .map_err(|e| Ck3ErrorKind::Deserialize {
                 part: Some(name.to_string()),
                 err: e,

@@ -1,4 +1,4 @@
-use crate::util::reencode_float;
+use crate::flavor::{flavor_from_tape, reencode_float, Ck3BinaryFlavor};
 use crate::{
     detect_encoding, tokens::TokenLookup, BodyEncoding, Ck3Date, Ck3Error, Ck3ErrorKind,
     Extraction, FailedResolveStrategy, PdsDate,
@@ -77,13 +77,18 @@ impl Melter {
         self
     }
 
-    fn convert(
+    fn convert_flavor<F, Q>(
         &self,
-        input: &[u8],
         writer: &mut Vec<u8>,
         unknown_tokens: &mut HashSet<u16>,
-    ) -> Result<(), Ck3Error> {
-        let tape = BinaryTape::from_ck3(input)?;
+        tape: BinaryTape,
+        flavor: F,
+        resolver: &Q,
+    ) -> Result<(), Ck3Error>
+    where
+        F: Ck3BinaryFlavor,
+        Q: TokenResolver,
+    {
         let mut wtr = TextWriterBuilder::new()
             .indent_char(b'\t')
             .indent_factor(1)
@@ -102,7 +107,6 @@ impl Melter {
         let mut end_indices = Vec::new();
 
         let tokens = tape.tokens();
-
         while let Some(token) = tokens.get(token_idx) {
             match token {
                 BinaryToken::Object(_) => {
@@ -176,12 +180,12 @@ impl Melter {
                 BinaryToken::Unquoted(x) => {
                     wtr.write_unquoted(x.as_bytes())?;
                 }
-                BinaryToken::F32(x) => wtr.write_f32(*x)?,
+                BinaryToken::F32(x) => wtr.write_f32(flavor.visit_f32(*x))?,
                 BinaryToken::F64(x) if !reencode_float_token => {
-                    write!(wtr, "{}", x)?;
+                    write!(wtr, "{}", flavor.visit_f64(*x))?;
                 }
                 BinaryToken::F64(x) => {
-                    let x = reencode_float(*x);
+                    let x = reencode_float(flavor.visit_f64(*x));
                     if x.fract().abs() > 1e-6 {
                         write!(wtr, "{:.5}", x)?;
                     } else {
@@ -189,7 +193,7 @@ impl Melter {
                     }
                     reencode_float_token = false;
                 }
-                BinaryToken::Token(x) => match TokenLookup.resolve(*x) {
+                BinaryToken::Token(x) => match resolver.resolve(*x) {
                     Some(id)
                         if self.rewrite
                             && matches!(id, "ironman" | "ironman_manager")
@@ -220,26 +224,17 @@ impl Melter {
                             ai_strategies_index = token_idx + 1;
                         }
 
-                        if matches!(id, "settings" | "setting" | "perks")
-                            || (id == "perk" && alive_data_index != 0)
+                        if matches!(
+                            id,
+                            "settings" | "setting" | "perks" | "ethnicities" | "languages"
+                        ) || (id == "perk" && alive_data_index != 0)
                         {
                             unquote_list_index = token_idx + 1;
                         }
 
                         known_number = id == "seed" || id == "random_count";
 
-                        known_unquote = unquote_list_index != 0
-                            || matches!(
-                                id,
-                                "save_game_version"
-                                    | "portraits_version"
-                                    | "meta_date"
-                                    | "color1"
-                                    | "color2"
-                                    | "color3"
-                                    | "color4"
-                                    | "color5"
-                            );
+                        known_unquote = unquote_list_index != 0 || flavor.unquote_token(id);
 
                         reencode_float_token = matches!(
                             id,
@@ -251,6 +246,7 @@ impl Melter {
                                 | "damage_last_tick"
                         );
                         reencode_float_token |= alive_data_index != 0 && id == "gold";
+                        reencode_float_token &= flavor.float_reencoding();
                         wtr.write_unquoted(id.as_bytes())?;
                     }
                     None => {
@@ -294,9 +290,29 @@ impl Melter {
         Ok(())
     }
 
-    /// Given one of the accepted inputs, this will return the save id line (if present in the input)
-    /// with the gamestate data decoded from binary to plain text.
-    pub fn melt(&self, data: &[u8]) -> Result<(Vec<u8>, HashSet<u16>), Ck3Error> {
+    fn convert<Q>(
+        &self,
+        input: &[u8],
+        resolver: &Q,
+        writer: &mut Vec<u8>,
+        unknown_tokens: &mut HashSet<u16>,
+    ) -> Result<(), Ck3Error>
+    where
+        Q: TokenResolver,
+    {
+        let tape = BinaryTape::from_slice(input)?;
+        let flavor = flavor_from_tape(&tape);
+        self.convert_flavor(writer, unknown_tokens, tape, flavor, resolver)
+    }
+
+    pub fn melt_with_tokens<Q>(
+        &self,
+        data: &[u8],
+        resolver: &Q,
+    ) -> Result<(Vec<u8>, HashSet<u16>), Ck3Error>
+    where
+        Q: TokenResolver,
+    {
         let mut result = Vec::with_capacity(data.len());
         let mut unknown_tokens = HashSet::new();
 
@@ -322,7 +338,9 @@ impl Melter {
         let mut reader = Cursor::new(data);
 
         match detect_encoding(&mut reader)? {
-            BodyEncoding::Plain => self.convert(data, &mut result, &mut unknown_tokens)?,
+            BodyEncoding::Plain => {
+                self.convert(data, resolver, &mut result, &mut unknown_tokens)?
+            }
             BodyEncoding::Zip(mut zip) => {
                 let size = zip
                     .by_name("gamestate")
@@ -340,7 +358,7 @@ impl Melter {
                         zip_file
                             .read_to_end(&mut inflated_data)
                             .map_err(|e| Ck3ErrorKind::ZipExtraction("gamestate", e))?;
-                        self.convert(&inflated_data, &mut result, &mut unknown_tokens)?
+                        self.convert(&inflated_data, resolver, &mut result, &mut unknown_tokens)?
                     }
 
                     #[cfg(feature = "mmap")]
@@ -348,12 +366,18 @@ impl Melter {
                         let mut mmap = memmap::MmapMut::map_anon(zip_file.size() as usize)?;
                         std::io::copy(&mut zip_file, &mut mmap.as_mut())
                             .map_err(|e| Ck3ErrorKind::ZipExtraction("gamestate", e))?;
-                        self.convert(&mmap[..], &mut result, &mut unknown_tokens)?
+                        self.convert(&mmap[..], resolver, &mut result, &mut unknown_tokens)?
                     }
                 }
             }
         }
 
         Ok((result, unknown_tokens))
+    }
+
+    /// Given one of the accepted inputs, this will return the save id line (if present in the input)
+    /// with the gamestate data decoded from binary to plain text.
+    pub fn melt(&self, data: &[u8]) -> Result<(Vec<u8>, HashSet<u16>), Ck3Error> {
+        self.melt_with_tokens(data, &TokenLookup)
     }
 }
