@@ -3,28 +3,11 @@ use crate::{
     detect_encoding, tokens::TokenLookup, BodyEncoding, Ck3Date, Ck3Error, Ck3ErrorKind,
     Extraction, FailedResolveStrategy, PdsDate,
 };
-use jomini::{BinaryTape, BinaryToken, TextWriterBuilder, TokenResolver, WriteVisitor};
+use jomini::{BinaryTape, BinaryToken, TextWriterBuilder, TokenResolver};
 use std::{
     collections::HashSet,
-    io::{Cursor, Read, Write},
+    io::{Cursor, Read},
 };
-
-struct Ck3Visitor;
-impl WriteVisitor for Ck3Visitor {
-    fn visit_f32<W>(&self, mut writer: W, data: f32) -> Result<(), jomini::Error>
-    where
-        W: Write,
-    {
-        write!(writer, "{:.6}", data).map_err(|e| e.into())
-    }
-
-    fn visit_f64<W>(&self, mut writer: W, data: f64) -> Result<(), jomini::Error>
-    where
-        W: Write,
-    {
-        write!(writer, "{:.5}", data).map_err(|e| e.into())
-    }
-}
 
 /// Convert a binary gamestate to plaintext
 ///
@@ -92,7 +75,7 @@ impl Melter {
         let mut wtr = TextWriterBuilder::new()
             .indent_char(b'\t')
             .indent_factor(1)
-            .from_writer_visitor(writer, Ck3Visitor);
+            .from_writer(writer);
         let mut token_idx = 0;
         let mut known_number = false;
         let mut known_unquote = false;
@@ -146,8 +129,8 @@ impl Melter {
                             // If the header line is present, we will update
                             // the metadata length in bytes which is the last
                             // 8 bytes of the header line. The header line
-                            // should be 24 in length
-                            let new_size = format!("{:08x}", data.len() - 24);
+                            // should be 24 in length (with incl terminating newline)
+                            let new_size = format!("{:08x}", data.len() - 23);
                             let ns = new_size.as_bytes();
                             data[23 - ns.len()..23].copy_from_slice(ns);
                         }
@@ -171,7 +154,7 @@ impl Melter {
                     }
                 }
                 BinaryToken::Quoted(x) => {
-                    if known_unquote {
+                    if known_unquote || wtr.expecting_key() {
                         wtr.write_unquoted(x.as_bytes())?;
                     } else {
                         wtr.write_quoted(x.as_bytes())?;
@@ -180,7 +163,7 @@ impl Melter {
                 BinaryToken::Unquoted(x) => {
                     wtr.write_unquoted(x.as_bytes())?;
                 }
-                BinaryToken::F32(x) => wtr.write_f32(flavor.visit_f32(*x))?,
+                BinaryToken::F32(x) => write!(wtr, "{:.6}", flavor.visit_f32(*x))?,
                 BinaryToken::F64(x) if !reencode_float_token => {
                     write!(wtr, "{}", flavor.visit_f64(*x))?;
                 }
@@ -287,6 +270,8 @@ impl Melter {
             token_idx += 1;
         }
 
+        let inner = wtr.into_inner();
+        inner.push(b'\n');
         Ok(())
     }
 
