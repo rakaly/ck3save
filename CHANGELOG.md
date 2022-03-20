@@ -1,3 +1,7 @@
+## v0.2.13 - 2022-03-20
+
+- Bump parser dependency to latest, no changes
+
 ## v0.2.12 - 2022-02-22
 
 - Support CK3 1.5 saves (new binary floating point format)
