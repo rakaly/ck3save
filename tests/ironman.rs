@@ -160,6 +160,18 @@ fn decode_and_melt_gold_correctly() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 #[test]
+fn parse_patch16() -> Result<(), Box<dyn std::error::Error>> {
+    let data = utils::request("ck3-1.6.ck3");
+    let reader = Cursor::new(&data[..]);
+    let (save, _encoding) = Ck3Extractor::builder()
+        .with_on_failed_resolve(FailedResolveStrategy::Error)
+        .extract_save(reader)?;
+
+    assert_eq!(save.meta_data.version.as_str(), "1.6.0");
+    Ok(())
+}
+
+#[test]
 fn melt_patch14() -> Result<(), Box<dyn std::error::Error>> {
     let data = utils::request("ck3-1.4-normal.ck3");
     let expected = utils::request_zip("ck3-1.4-normal_melted.zip");
