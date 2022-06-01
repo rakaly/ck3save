@@ -1,3 +1,7 @@
+## v0.2.15 - 2022-04-29
+
+- Support CK3 1.6 saves
+
 ## v0.2.14 - 2022-04-29
 
 - Update zip dependency to latest
