@@ -1,15 +1,22 @@
 use std::env;
 use std::io::Write;
 
-fn main() {
+use ck3save::{Ck3File, EnvTokens, FailedResolveStrategy};
+
+fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
-    let file_data = std::fs::read(&args[1]).unwrap();
-    let (melted, _tokens) = ck3save::Melter::new()
-        .with_on_failed_resolve(ck3save::FailedResolveStrategy::Error)
-        .melt(&file_data[..])
-        .unwrap();
+    let data = std::fs::read(&args[1])?;
+    let file = Ck3File::from_slice(&data)?;
+    let mut zip_sink = Vec::new();
+    let file = file.parse(&mut zip_sink)?;
+    let binary = file.as_binary().unwrap();
+    let melted = binary
+        .melter()
+        .on_failed_resolve(FailedResolveStrategy::Error)
+        .melt(&EnvTokens)?;
 
     let stdout = std::io::stdout();
     let mut handle = stdout.lock();
-    handle.write_all(&melted[..]).unwrap();
+    let _ = handle.write_all(melted.data());
+    Ok(())
 }

@@ -5,18 +5,24 @@
 CK3 Save is a library to ergonomically work with Crusader Kings III (CK3) saves (ironman + regular).
 
 ```rust
-use ck3save::{Ck3Extractor, Encoding};
-use std::io::Cursor;
+use ck3save::{
+    models::{Gamestate, HeaderBorrowed},
+    Ck3File, Encoding, EnvTokens,
+};
 
 let data = std::fs::read("assets/saves/Jarl_Ivar_of_the_Isles_867_01_01.ck3")?;
-let reader = Cursor::new(&data[..]);
-let (save, encoding) = Ck3Extractor::extract_save(reader)?;
-assert_eq!(encoding, Encoding::TextZip);
-assert_eq!(save.meta_data.version, String::from("1.0.2"));
-```
+let file = Ck3File::from_slice(&data)?;
+assert_eq!(file.encoding(), Encoding::TextZip);
 
-`Ck3Extractor` will deserialize both plaintext (used for mods, multiplayer,
-non-ironman saves) and binary (ironman) encoded saves into the same structure.
+let meta = file.parse_metadata()?;
+let header: HeaderBorrowed = meta.deserializer().build(&EnvTokens)?;
+
+let mut zip_sink = Vec::new();
+let parsed_file = file.parse(&mut zip_sink)?;
+let save: Gamestate = parsed_file.deserializer().build(&EnvTokens)?;
+assert_eq!(save.meta_data.version, String::from("1.0.2"));
+assert_eq!(header.meta_data.version, String::from("1.0.2"));
+```
 
 ## Ironman
 

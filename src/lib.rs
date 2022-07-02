@@ -4,19 +4,25 @@
 CK3 Save is a library to ergonomically work with Crusader Kings 3 (CK3) saves (ironman + regular).
 
 ```rust
-use ck3save::{Ck3Extractor, Encoding};
-use std::io::Cursor;
+use ck3save::{
+    models::{Gamestate, HeaderBorrowed},
+    Ck3File, Encoding, EnvTokens,
+};
 
 let data = std::fs::read("assets/saves/Jarl_Ivar_of_the_Isles_867_01_01.ck3")?;
-let reader = Cursor::new(&data[..]);
-let (save, encoding) = Ck3Extractor::extract_save(reader)?;
-assert_eq!(encoding, Encoding::TextZip);
+let file = Ck3File::from_slice(&data)?;
+assert_eq!(file.encoding(), Encoding::TextZip);
+
+let meta = file.parse_metadata()?;
+let header: HeaderBorrowed = meta.deserializer().build(&EnvTokens)?;
+
+let mut zip_sink = Vec::new();
+let parsed_file = file.parse(&mut zip_sink)?;
+let save: Gamestate = parsed_file.deserializer().build(&EnvTokens)?;
 assert_eq!(save.meta_data.version, String::from("1.0.2"));
+assert_eq!(header.meta_data.version, String::from("1.0.2"));
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
-
-`Ck3Extractor` will deserialize both plaintext (used for mods, multiplayer,
-non-ironman saves) and binary (ironman) encoded saves into the same structure.
 
 ## Ironman
 
@@ -38,7 +44,9 @@ tokens. I am also restricted from divulging how the list of tokens can be derive
 mod ck3date;
 mod errors;
 mod extraction;
+pub mod file;
 pub(crate) mod flavor;
+mod header;
 mod melt;
 pub mod models;
 mod tokens;
@@ -46,5 +54,9 @@ mod tokens;
 pub use ck3date::*;
 pub use errors::*;
 pub use extraction::*;
-pub use jomini::FailedResolveStrategy;
+#[doc(inline)]
+pub use file::Ck3File;
+pub use header::*;
+pub use jomini::binary::FailedResolveStrategy;
 pub use melt::*;
+pub use tokens::EnvTokens;

@@ -10,7 +10,7 @@ edition = "2018"
 cargo-fuzz = true
 
 [dependencies]
-libfuzzer-sys = "0.3"
+libfuzzer-sys = "0.4"
 
 [dependencies.ck3save]
 path = ".."
@@ -22,11 +22,5 @@ members = ["."]
 [[bin]]
 name = "fuzz_extract"
 path = "fuzz_targets/fuzz_extract.rs"
-test = false
-doc = false
-
-[[bin]]
-name = "fuzz_melt"
-path = "fuzz_targets/fuzz_melt.rs"
 test = false
 doc = false

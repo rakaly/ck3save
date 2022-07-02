@@ -1,4 +1,4 @@
-use jomini::{BinaryFlavor, BinaryTape, BinaryToken, Encoding, Utf8Encoding};
+use jomini::{binary::BinaryFlavor, BinaryTape, BinaryToken, Encoding, Utf8Encoding};
 
 pub(crate) fn reencode_float(f: f64) -> f64 {
     // first reverse the flavor decoding to get raw val
@@ -150,7 +150,6 @@ impl Ck3BinaryFlavor for Ck3Flavor10 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use jomini::BinaryFlavor;
 
     #[test]
     fn reencode_accuracy() {
