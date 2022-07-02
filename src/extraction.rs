@@ -40,10 +40,10 @@ In short, to know what the save file format:
 /// Describes the format of the save before decoding
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Encoding {
-    /// Save is encoded with the standard format:
+    /// Save is encoded with the debug plaintext format:
     ///
     ///  - a save id line
-    /// - uncompressed binary gamestate
+    ///  - uncompressed text gamestate
     Text,
 
     /// Save is encoded with the standard format:
