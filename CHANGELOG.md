@@ -1,3 +1,7 @@
+## v0.3.1 - 2022-07-08
+
+- Empty CK3_IRONMAN_TOKENS is same as unset
+
 ## v0.3.0 - 2022-07-02
 
 - Saves can be converted into JSON
