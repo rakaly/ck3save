@@ -12,17 +12,23 @@ keywords = ["ck3", "ironman"]
 categories = ["parsing"]
 
 [features]
+default = ["miniz"]
+miniz = ["miniz_oxide"]
+libdeflate = ["libdeflater/freestanding"]
 serialize = []
 
 [dependencies]
 jomini = { version = "0.19", features = ["json"] }
-zip = { version =  "0.6", default-features = false, features = ["deflate"] }
+zip = { version =  "0.6", default-features = false }
 serde = { version = "1", features = ["derive"] }
 thiserror = "1"
+libdeflater = { version = "0.10", optional = true }
+miniz_oxide = { version = "0.6", optional = true }
 
 [dev-dependencies]
 attohttpc = "0.19"
 twoway = "0.2"
+zip = { version =  "0.6", default-features = false, features = ["deflate"] }
 
 # We override the test profile so that our tests run in a tolerable time as
 # some of the asset files are heavyweight and can take a significant amount of

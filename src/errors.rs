@@ -1,3 +1,4 @@
+use crate::deflate::ZipInflationError;
 use zip::result::ZipError;
 
 /// A Ck3 Error
@@ -31,11 +32,11 @@ pub enum Ck3ErrorKind {
     #[error("missing gamestate entry in zip")]
     ZipMissingEntry,
 
-    #[error("unable to inflate zip entry: {source}")]
-    ZipInflation {
-        #[source]
-        source: std::io::Error,
-    },
+    #[error("unable to inflate zip entry: {msg}")]
+    ZipBadData { msg: String },
+
+    #[error("early eof, only able to write {written} bytes")]
+    ZipEarlyEof { written: usize },
 
     #[error("unable to parse due to: {0}")]
     Parse(#[source] jomini::Error),
@@ -51,6 +52,15 @@ pub enum Ck3ErrorKind {
 
     #[error("invalid header")]
     InvalidHeader,
+}
+
+impl From<ZipInflationError> for Ck3ErrorKind {
+    fn from(x: ZipInflationError) -> Self {
+        match x {
+            ZipInflationError::BadData { msg } => Ck3ErrorKind::ZipBadData { msg },
+            ZipInflationError::EarlyEof { written } => Ck3ErrorKind::ZipEarlyEof { written },
+        }
+    }
 }
 
 #[cfg(test)]
