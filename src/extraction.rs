@@ -38,7 +38,7 @@ In short, to know what the save file format:
 */
 
 /// Describes the format of the save before decoding
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub enum Encoding {
     /// Save is encoded with the debug plaintext format:
     ///

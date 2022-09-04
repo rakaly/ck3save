@@ -81,7 +81,7 @@ impl SaveHeaderKind {
 /// The first line of the save file
 ///
 /// <https://github.com/crschnick/pdx_unlimiter/blob/master/pdxu-io/src/main/java/com/crschnick/pdxu/io/savegame/Ck3Header.java#L7>
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct SaveHeader {
     unknown: [u8; 2],
     kind: SaveHeaderKind,
