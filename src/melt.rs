@@ -26,6 +26,11 @@ pub struct MeltedDocument {
 
 impl MeltedDocument {
     /// The converted plaintext data
+    pub fn into_data(self) -> Vec<u8> {
+        self.data
+    }
+
+    /// The converted plaintext data
     pub fn data(&self) -> &[u8] {
         self.data.as_slice()
     }
