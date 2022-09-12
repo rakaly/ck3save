@@ -1,3 +1,8 @@
+## v0.4.0 - 2022-09-12
+
+- Bump to edition 2021
+- Add more efficient miniz and libdeflate inflation
+
 ## v0.3.1 - 2022-07-08
 
 - Empty CK3_IRONMAN_TOKENS is same as unset
