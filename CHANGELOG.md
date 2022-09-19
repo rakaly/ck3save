@@ -1,3 +1,7 @@
+## v0.4.2 - 2022-09-18
+
+- Fix 1.7 saves using old encoding format
+
 ## v0.4.1 - 2022-09-12
 
 - Allow ownership transfer of melted output
