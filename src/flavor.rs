@@ -34,8 +34,9 @@ impl<T: Ck3BinaryFlavor + ?Sized> Ck3BinaryFlavor for Box<T> {
 
 pub(crate) fn flavor_from_tape(tape: &BinaryTape) -> Box<dyn Ck3BinaryFlavor> {
     match tape.tokens() {
-        [_, _, BinaryToken::Token(1423), BinaryToken::I32(7), ..] => Box::new(Ck3Flavor15::new()),
-        [_, _, BinaryToken::Token(1423), BinaryToken::I32(6), ..] => Box::new(Ck3Flavor15::new()),
+        [_, _, BinaryToken::Token(1423), BinaryToken::I32(x), ..] if *x > 5 => {
+            Box::new(Ck3Flavor15::new())
+        }
         _ => Box::new(Ck3Flavor10::new()),
     }
 }
