@@ -16,6 +16,9 @@ pub(crate) enum MelterError {
 
     #[error("")]
     UnknownToken { token_id: u16 },
+
+    #[error("")]
+    InvalidDate(i32),
 }
 
 /// Output from melting a binary save to plaintext
@@ -87,6 +90,7 @@ impl<'a, 'b> Ck3Melter<'a, 'b> {
         let out = melt(self, resolver).map_err(|e| match e {
             MelterError::Write(x) => Ck3ErrorKind::Writer(x),
             MelterError::UnknownToken { token_id } => Ck3ErrorKind::UnknownToken { token_id },
+            MelterError::InvalidDate(x) => Ck3ErrorKind::InvalidDate(x),
         })?;
         Ok(out)
     }
@@ -108,6 +112,7 @@ where
     let mut token_idx = 0;
     let mut known_number = false;
     let mut known_unquote = false;
+    let mut known_date = false;
     let mut reencode_float_token = false;
     let mut alive_data_index = 0;
     let mut unquote_list_index = 0;
@@ -171,6 +176,15 @@ where
                 {
                     write!(wtr, "{}", x)?;
                     known_number = false;
+                } else if known_date {
+                    if let Some(date) = crate::Ck3Date::from_binary(*x) {
+                        wtr.write_date(date.game_fmt())?;
+                    } else if melter.on_failed_resolve != FailedResolveStrategy::Error {
+                        wtr.write_i32(*x)?;
+                    } else {
+                        return Err(MelterError::InvalidDate(*x));
+                    }
+                    known_date = false;
                 } else if let Some(date) = crate::Ck3Date::from_binary_heuristic(*x) {
                     wtr.write_date(date.game_fmt())?;
                 } else {
@@ -231,7 +245,7 @@ where
                     }
 
                     known_number = id == "seed" || id == "random_count";
-
+                    known_date = id == "birth";
                     known_unquote = unquote_list_index != 0 || flavor.unquote_token(id);
 
                     reencode_float_token = matches!(

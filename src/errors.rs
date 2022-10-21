@@ -52,6 +52,9 @@ pub enum Ck3ErrorKind {
 
     #[error("invalid header")]
     InvalidHeader,
+
+    #[error("expected the binary integer: {0} to be parsed as a date")]
+    InvalidDate(i32),
 }
 
 impl From<ZipInflationError> for Ck3ErrorKind {
