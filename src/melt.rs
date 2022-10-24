@@ -130,17 +130,18 @@ where
                 end_indices.push(token_idx);
                 wtr.write_object_start()?;
             }
-            BinaryToken::HiddenObject(_) => {
-                wtr.write_hidden_object_start()?;
+            BinaryToken::MixedContainer => {
+                wtr.start_mixed_mode();
+            }
+            BinaryToken::Equal => {
+                wtr.write_operator(jomini::text::Operator::Equal)?;
             }
             BinaryToken::Array(_) => {
                 end_indices.push(token_idx);
                 wtr.write_array_start()?;
             }
             BinaryToken::End(x) => {
-                if !matches!(tokens.get(*x), Some(BinaryToken::HiddenObject(_))) {
-                    wtr.write_end()?;
-                }
+                wtr.write_end()?;
 
                 end_indices.pop();
                 if *x == alive_data_index {
