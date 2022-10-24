@@ -1,3 +1,9 @@
+## v0.4.3 - 2022-10-24
+
+- Add `birth` as a known date token
+- Update jomini parser to 0.20
+- Update libdeflater to 0.11
+
 ## v0.4.2 - 2022-09-18
 
 - Fix 1.7 saves using old encoding format
