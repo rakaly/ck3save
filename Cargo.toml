@@ -26,7 +26,7 @@ libdeflater = { version = "0.11", optional = true }
 miniz_oxide = { version = "0.6", optional = true }
 
 [dev-dependencies]
-attohttpc = "0.19"
+attohttpc = "0.23"
 twoway = "0.2"
 zip = { version =  "0.6", default-features = false, features = ["deflate"] }
 
