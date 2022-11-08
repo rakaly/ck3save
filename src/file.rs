@@ -73,13 +73,18 @@ impl<'a> Ck3File<'a> {
         }
     }
 
+    /// Return first line header
+    pub fn header(&self) -> &SaveHeader {
+        &self.header
+    }
+
     /// Returns the detected decoding of the file
     pub fn encoding(&self) -> Encoding {
         match &self.kind {
             FileKind::Text(_) => Encoding::Text,
             FileKind::Binary(_) => Encoding::Binary,
-            FileKind::Zip { is_text, .. } if *is_text => Encoding::TextZip,
-            FileKind::Zip { .. } => Encoding::BinaryZip,
+            FileKind::Zip { is_text: true, .. } => Encoding::TextZip,
+            FileKind::Zip { is_text: false, .. } => Encoding::BinaryZip,
         }
     }
 
