@@ -14,11 +14,11 @@ let file = Ck3File::from_slice(&data)?;
 assert_eq!(file.encoding(), Encoding::TextZip);
 
 let meta = file.parse_metadata()?;
-let header: HeaderBorrowed = meta.deserializer().build(&EnvTokens)?;
+let header: HeaderBorrowed = meta.deserializer(&EnvTokens).deserialize()?;
 
 let mut zip_sink = Vec::new();
 let parsed_file = file.parse(&mut zip_sink)?;
-let save: Gamestate = parsed_file.deserializer().build(&EnvTokens)?;
+let save: Gamestate = parsed_file.deserializer(&EnvTokens).deserialize()?;
 assert_eq!(save.meta_data.version, String::from("1.0.2"));
 assert_eq!(header.meta_data.version, String::from("1.0.2"));
 # Ok::<(), Box<dyn std::error::Error>>(())

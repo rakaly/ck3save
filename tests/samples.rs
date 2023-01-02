@@ -10,7 +10,7 @@ fn test_ck3_text_header() {
     let file = Ck3File::from_slice(&data[..]).unwrap();
     assert_eq!(file.encoding(), Encoding::Text);
     let header = file.parse_metadata().unwrap();
-    let header: HeaderOwned = header.deserializer().build(&EnvTokens).unwrap();
+    let header: HeaderOwned = header.deserializer(&EnvTokens).deserialize().unwrap();
     assert_eq!(header.meta_data.version, String::from("1.0.2"));
 }
 
@@ -20,7 +20,7 @@ fn test_ck3_text_header_borrowed() {
     let file = Ck3File::from_slice(&data[..]).unwrap();
     assert_eq!(file.encoding(), Encoding::Text);
     let header = file.parse_metadata().unwrap();
-    let header: HeaderBorrowed = header.deserializer().build(&EnvTokens).unwrap();
+    let header: HeaderBorrowed = header.deserializer(&EnvTokens).deserialize().unwrap();
     assert_eq!(header.meta_data.version, String::from("1.0.2"));
 }
 
@@ -31,7 +31,7 @@ fn test_ck3_text_save() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(file.encoding(), Encoding::TextZip);
     let mut zip_sink = Vec::new();
     let parsed_file = file.parse(&mut zip_sink).unwrap();
-    let game: Gamestate = parsed_file.deserializer().build(&EnvTokens).unwrap();
+    let game: Gamestate = parsed_file.deserializer(&EnvTokens).deserialize().unwrap();
     assert_eq!(game.meta_data.version, String::from("1.0.2"));
     Ok(())
 }

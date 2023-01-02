@@ -8,7 +8,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let file = Ck3File::from_slice(&data)?;
     let mut zip_sink = Vec::new();
     let file = file.parse(&mut zip_sink)?;
-    let save: Gamestate = file.deserializer().build(&EnvTokens)?;
+    let save: Gamestate = file.deserializer(&EnvTokens).deserialize()?;
     print!("{:#?}", save.meta_data.version);
     Ok(())
 }

@@ -3,7 +3,7 @@ use crate::{
     Ck3Error, Ck3ErrorKind, Ck3Melter, Encoding, SaveHeader,
 };
 use jomini::{
-    binary::{BinaryDeserializerBuilder, FailedResolveStrategy, TokenResolver},
+    binary::{FailedResolveStrategy, TokenResolver},
     text::ObjectReader,
     BinaryDeserializer, BinaryTape, TextDeserializer, TextTape, Utf8Encoding,
 };
@@ -218,13 +218,13 @@ impl<'a> Ck3ParsedFile<'a> {
     }
 
     /// Prepares the file for deserialization into a custom structure
-    pub fn deserializer(&self) -> Ck3Deserializer {
+    pub fn deserializer<'b, RES>(&'b self, resolver: &'b RES) -> Ck3Deserializer<RES> where RES: TokenResolver {
         match &self.kind {
             Ck3ParsedFileKind::Text(x) => Ck3Deserializer {
                 kind: Ck3DeserializerKind::Text(x),
             },
             Ck3ParsedFileKind::Binary(x) => Ck3Deserializer {
-                kind: Ck3DeserializerKind::Binary(x.deserializer()),
+                kind: Ck3DeserializerKind::Binary(x.deserializer(resolver)),
             },
         }
     }
@@ -325,8 +325,8 @@ impl<'a> Ck3Text<'a> {
     where
         T: Deserialize<'a>,
     {
-        let result =
-            TextDeserializer::from_utf8_tape(&self.tape).map_err(Ck3ErrorKind::Deserialize)?;
+        let deser = TextDeserializer::from_utf8_tape(&self.tape);
+        let result = deser.deserialize().map_err(Ck3ErrorKind::Deserialize)?;
         Ok(result)
     }
 }
@@ -348,10 +348,9 @@ impl<'a> Ck3Binary<'a> {
         Ok(Ck3Binary { tape, header })
     }
 
-    pub fn deserializer<'b>(&'b self) -> Ck3BinaryDeserializer<'a, 'b> {
+    pub fn deserializer<'b, RES>(&'b self, resolver: &'b RES) -> Ck3BinaryDeserializer<RES> where RES: TokenResolver {
         Ck3BinaryDeserializer {
-            builder: BinaryDeserializer::builder_flavor(flavor_from_tape(&self.tape)),
-            tape: &self.tape,
+            deser: BinaryDeserializer::builder_flavor(flavor_from_tape(&self.tape)).from_tape(&self.tape, resolver),
         }
     }
 
@@ -360,17 +359,17 @@ impl<'a> Ck3Binary<'a> {
     }
 }
 
-enum Ck3DeserializerKind<'a, 'b> {
-    Text(&'b Ck3Text<'a>),
-    Binary(Ck3BinaryDeserializer<'a, 'b>),
+enum Ck3DeserializerKind<'data, 'tape, RES> {
+    Text(&'tape Ck3Text<'data>),
+    Binary(Ck3BinaryDeserializer<'data, 'tape, RES>),
 }
 
 /// A deserializer for custom structures
-pub struct Ck3Deserializer<'a, 'b> {
-    kind: Ck3DeserializerKind<'a, 'b>,
+pub struct Ck3Deserializer<'data, 'tape, RES> {
+    kind: Ck3DeserializerKind<'data, 'tape, RES>,
 }
 
-impl<'a, 'b> Ck3Deserializer<'a, 'b> {
+impl<'data, 'tape, RES> Ck3Deserializer<'data, 'tape, RES> where RES: TokenResolver {
     pub fn on_failed_resolve(&mut self, strategy: FailedResolveStrategy) -> &mut Self {
         if let Ck3DeserializerKind::Binary(x) = &mut self.kind {
             x.on_failed_resolve(strategy);
@@ -378,38 +377,33 @@ impl<'a, 'b> Ck3Deserializer<'a, 'b> {
         self
     }
 
-    pub fn build<T, R>(&self, resolver: &'a R) -> Result<T, Ck3Error>
+    pub fn deserialize<T>(&self) -> Result<T, Ck3Error>
     where
-        R: TokenResolver,
-        T: Deserialize<'a>,
+        T: Deserialize<'data>,
     {
         match &self.kind {
             Ck3DeserializerKind::Text(x) => x.deserialize(),
-            Ck3DeserializerKind::Binary(x) => x.build(resolver),
+            Ck3DeserializerKind::Binary(x) => x.deserialize(),
         }
     }
 }
 
 /// Deserializes binary data into custom structures
-pub struct Ck3BinaryDeserializer<'a, 'b> {
-    builder: BinaryDeserializerBuilder<Box<dyn Ck3BinaryFlavor>>,
-    tape: &'b BinaryTape<'a>,
+pub struct Ck3BinaryDeserializer<'data, 'tape, RES> {
+    deser: BinaryDeserializer<'tape, 'data, 'tape, RES, Box<dyn Ck3BinaryFlavor>>,
 }
 
-impl<'a, 'b> Ck3BinaryDeserializer<'a, 'b> {
+impl<'data, 'tape, RES> Ck3BinaryDeserializer<'data, 'tape, RES> where RES: TokenResolver {
     pub fn on_failed_resolve(&mut self, strategy: FailedResolveStrategy) -> &mut Self {
-        self.builder.on_failed_resolve(strategy);
+        self.deser.on_failed_resolve(strategy);
         self
     }
 
-    pub fn build<T, R>(&self, resolver: &'a R) -> Result<T, Ck3Error>
+    pub fn deserialize<T>(&self) -> Result<T, Ck3Error>
     where
-        R: TokenResolver,
-        T: Deserialize<'a>,
+        T: Deserialize<'data>,
     {
-        let result = self
-            .builder
-            .from_tape(self.tape, resolver)
+        let result = self.deser.deserialize()
             .map_err(|e| match e.kind() {
                 jomini::ErrorKind::Deserialize(e2) => match e2.kind() {
                     &jomini::DeserializeErrorKind::UnknownToken { token_id } => {

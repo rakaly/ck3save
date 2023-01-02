@@ -12,7 +12,7 @@ fn test_ck3_binary_header() {
     let file = Ck3File::from_slice(&data[..]).unwrap();
     assert_eq!(file.encoding(), Encoding::Binary);
     let header = file.parse_metadata().unwrap();
-    let header: HeaderOwned = header.deserializer().build(&EnvTokens).unwrap();
+    let header: HeaderOwned = header.deserializer(&EnvTokens).deserialize().unwrap();
     assert_eq!(header.meta_data.version, String::from("1.0.2"));
 }
 
@@ -22,7 +22,7 @@ fn test_ck3_binary_header_borrowed() {
     let file = Ck3File::from_slice(&data[..]).unwrap();
     assert_eq!(file.encoding(), Encoding::Binary);
     let header = file.parse_metadata().unwrap();
-    let header: HeaderBorrowed = header.deserializer().build(&EnvTokens).unwrap();
+    let header: HeaderBorrowed = header.deserializer(&EnvTokens).deserialize().unwrap();
     assert_eq!(header.meta_data.version, String::from("1.0.2"));
 }
 
@@ -33,7 +33,7 @@ fn test_ck3_binary_save() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(file.encoding(), Encoding::BinaryZip);
     let mut zip_sink = Vec::new();
     let parsed_file = file.parse(&mut zip_sink)?;
-    let game: Gamestate = parsed_file.deserializer().build(&EnvTokens)?;
+    let game: Gamestate = parsed_file.deserializer(&EnvTokens).deserialize()?;
     assert_eq!(game.meta_data.version, String::from("1.0.2"));
     Ok(())
 }
@@ -44,7 +44,7 @@ fn test_ck3_binary_save_header_borrowed() {
     let file = Ck3File::from_slice(&data[..]).unwrap();
     assert_eq!(file.encoding(), Encoding::BinaryZip);
     let header = file.parse_metadata().unwrap();
-    let header: HeaderBorrowed = header.deserializer().build(&EnvTokens).unwrap();
+    let header: HeaderBorrowed = header.deserializer(&EnvTokens).deserialize().unwrap();
     assert_eq!(file.encoding(), Encoding::BinaryZip);
     assert_eq!(header.meta_data.version, "1.0.2");
 }
@@ -58,11 +58,11 @@ fn test_ck3_binary_autosave() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut zip_sink = Vec::new();
     let parsed_file = file.parse(&mut zip_sink)?;
-    let game: Gamestate = parsed_file.deserializer().build(&EnvTokens)?;
+    let game: Gamestate = parsed_file.deserializer(&EnvTokens).deserialize()?;
     assert_eq!(game.meta_data.version, String::from("1.0.2"));
 
     let header = file.parse_metadata()?;
-    let header: HeaderBorrowed = header.deserializer().build(&EnvTokens)?;
+    let header: HeaderBorrowed = header.deserializer(&EnvTokens).deserialize()?;
     assert_eq!(header.meta_data.version, String::from("1.0.2"));
 
     let binary = parsed_file.as_binary().unwrap();
@@ -82,7 +82,7 @@ fn test_ck3_binary_save_tokens() -> Result<(), Box<dyn std::error::Error>> {
     let file = Ck3File::from_slice(&data[..])?;
     let mut zip_sink = Vec::new();
     let parsed_file = file.parse(&mut zip_sink)?;
-    let save: Gamestate = parsed_file.deserializer().build(&EnvTokens)?;
+    let save: Gamestate = parsed_file.deserializer(&EnvTokens).deserialize()?;
     assert_eq!(file.encoding(), Encoding::BinaryZip);
     assert_eq!(save.meta_data.version, String::from("1.0.2"));
     Ok(())
@@ -98,7 +98,7 @@ fn test_roundtrip_header_melt() {
 
     let file = Ck3File::from_slice(out.data()).unwrap();
     let header = file.parse_metadata().unwrap();
-    let header: HeaderOwned = header.deserializer().build(&EnvTokens).unwrap();
+    let header: HeaderOwned = header.deserializer(&EnvTokens).deserialize().unwrap();
 
     assert_eq!(file.encoding(), Encoding::Text);
     assert_eq!(header.meta_data.version, String::from("1.0.2"));
@@ -140,9 +140,9 @@ fn test_ck3_binary_save_patch_1_3() -> Result<(), Box<dyn std::error::Error>> {
     let parsed_file = file.parse(&mut zip_sink)?;
 
     let save: Gamestate = parsed_file
-        .deserializer()
+        .deserializer(&EnvTokens)
         .on_failed_resolve(FailedResolveStrategy::Error)
-        .build(&EnvTokens)?;
+        .deserialize()?;
     assert_eq!(save.meta_data.version, String::from("1.3.0"));
     Ok(())
 }
@@ -168,9 +168,9 @@ fn test_ck3_1_0_3_old_cloud_and_local_tokens() -> Result<(), Box<dyn std::error:
     assert_eq!(file.encoding(), Encoding::Text);
 
     let save: Gamestate = parsed_file
-        .deserializer()
+        .deserializer(&EnvTokens)
         .on_failed_resolve(FailedResolveStrategy::Error)
-        .build(&EnvTokens)?;
+        .deserialize()?;
 
     assert_eq!(save.meta_data.version, String::from("1.0.3"));
     Ok(())
@@ -183,9 +183,9 @@ fn decode_and_melt_gold_correctly() -> Result<(), Box<dyn std::error::Error>> {
     let mut zip_sink = Vec::new();
     let parsed_file = file.parse(&mut zip_sink)?;
     let save: Gamestate = parsed_file
-        .deserializer()
+        .deserializer(&EnvTokens)
         .on_failed_resolve(FailedResolveStrategy::Error)
-        .build(&EnvTokens)?;
+        .deserialize()?;
 
     assert_eq!(file.encoding(), Encoding::BinaryZip);
 
@@ -221,9 +221,9 @@ fn parse_patch16() -> Result<(), Box<dyn std::error::Error>> {
     let mut zip_sink = Vec::new();
     let parsed_file = file.parse(&mut zip_sink)?;
     let save: Gamestate = parsed_file
-        .deserializer()
+        .deserializer(&EnvTokens)
         .on_failed_resolve(FailedResolveStrategy::Error)
-        .build(&EnvTokens)?;
+        .deserialize()?;
 
     assert_eq!(save.meta_data.version.as_str(), "1.6.0");
     Ok(())
