@@ -218,7 +218,10 @@ impl<'a> Ck3ParsedFile<'a> {
     }
 
     /// Prepares the file for deserialization into a custom structure
-    pub fn deserializer<'b, RES>(&'b self, resolver: &'b RES) -> Ck3Deserializer<RES> where RES: TokenResolver {
+    pub fn deserializer<'b, RES>(&'b self, resolver: &'b RES) -> Ck3Deserializer<RES>
+    where
+        RES: TokenResolver,
+    {
         match &self.kind {
             Ck3ParsedFileKind::Text(x) => Ck3Deserializer {
                 kind: Ck3DeserializerKind::Text(x),
@@ -348,9 +351,13 @@ impl<'a> Ck3Binary<'a> {
         Ok(Ck3Binary { tape, header })
     }
 
-    pub fn deserializer<'b, RES>(&'b self, resolver: &'b RES) -> Ck3BinaryDeserializer<RES> where RES: TokenResolver {
+    pub fn deserializer<'b, RES>(&'b self, resolver: &'b RES) -> Ck3BinaryDeserializer<RES>
+    where
+        RES: TokenResolver,
+    {
         Ck3BinaryDeserializer {
-            deser: BinaryDeserializer::builder_flavor(flavor_from_tape(&self.tape)).from_tape(&self.tape, resolver),
+            deser: BinaryDeserializer::builder_flavor(flavor_from_tape(&self.tape))
+                .from_tape(&self.tape, resolver),
         }
     }
 
@@ -369,7 +376,10 @@ pub struct Ck3Deserializer<'data, 'tape, RES> {
     kind: Ck3DeserializerKind<'data, 'tape, RES>,
 }
 
-impl<'data, 'tape, RES> Ck3Deserializer<'data, 'tape, RES> where RES: TokenResolver {
+impl<'data, 'tape, RES> Ck3Deserializer<'data, 'tape, RES>
+where
+    RES: TokenResolver,
+{
     pub fn on_failed_resolve(&mut self, strategy: FailedResolveStrategy) -> &mut Self {
         if let Ck3DeserializerKind::Binary(x) = &mut self.kind {
             x.on_failed_resolve(strategy);
@@ -393,7 +403,10 @@ pub struct Ck3BinaryDeserializer<'data, 'tape, RES> {
     deser: BinaryDeserializer<'tape, 'data, 'tape, RES, Box<dyn Ck3BinaryFlavor>>,
 }
 
-impl<'data, 'tape, RES> Ck3BinaryDeserializer<'data, 'tape, RES> where RES: TokenResolver {
+impl<'data, 'tape, RES> Ck3BinaryDeserializer<'data, 'tape, RES>
+where
+    RES: TokenResolver,
+{
     pub fn on_failed_resolve(&mut self, strategy: FailedResolveStrategy) -> &mut Self {
         self.deser.on_failed_resolve(strategy);
         self
@@ -403,16 +416,15 @@ impl<'data, 'tape, RES> Ck3BinaryDeserializer<'data, 'tape, RES> where RES: Toke
     where
         T: Deserialize<'data>,
     {
-        let result = self.deser.deserialize()
-            .map_err(|e| match e.kind() {
-                jomini::ErrorKind::Deserialize(e2) => match e2.kind() {
-                    &jomini::DeserializeErrorKind::UnknownToken { token_id } => {
-                        Ck3ErrorKind::UnknownToken { token_id }
-                    }
-                    _ => Ck3ErrorKind::Deserialize(e),
-                },
+        let result = self.deser.deserialize().map_err(|e| match e.kind() {
+            jomini::ErrorKind::Deserialize(e2) => match e2.kind() {
+                &jomini::DeserializeErrorKind::UnknownToken { token_id } => {
+                    Ck3ErrorKind::UnknownToken { token_id }
+                }
                 _ => Ck3ErrorKind::Deserialize(e),
-            })?;
+            },
+            _ => Ck3ErrorKind::Deserialize(e),
+        })?;
         Ok(result)
     }
 }
