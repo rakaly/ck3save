@@ -5,7 +5,8 @@ use libfuzzer_sys::fuzz_target;
 fn run(data: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
     let file = ck3save::Ck3File::from_slice(&data)?;
 
-    let meta = file.parse_metadata()?;
+    let meta_data = file.meta();
+    let meta = meta_data.parse()?;
     let _meta: Result<ck3save::models::HeaderBorrowed, _> =
         meta.deserializer(&EnvTokens).deserialize();
 

@@ -107,7 +107,12 @@ impl<'a> Ck3File<'a> {
                 // the metadata length. Like maybe someone accidentally
                 // converted the line endings from unix to dos.
                 let len = self.header.metadata_len() as usize;
-                let data = if len * 2 > x.len() { x } else { &x[..len] };
+                let data = if len * 2 > x.len() {
+                    x
+                } else {
+                    &x[..len.min(x.len())]
+                };
+
                 Ck3Meta {
                     kind: Ck3MetaKind::Text(data),
                     header: self.header.clone(),
@@ -178,32 +183,30 @@ impl<'a> Ck3File<'a> {
     }
 }
 
+/// Holds the metadata section of the save
+#[derive(Debug)]
 pub struct Ck3Meta<'a> {
     kind: Ck3MetaKind<'a>,
     header: SaveHeader,
 }
 
-enum Ck3MetaKind<'a> {
+/// Describes the format of the metadata section of the save
+#[derive(Debug)]
+pub enum Ck3MetaKind<'a> {
     Text(&'a [u8]),
     Binary(&'a [u8]),
 }
 
 impl<'a> Ck3Meta<'a> {
-    pub fn data(&self) -> &'a [u8] {
-        match self.kind {
-            Ck3MetaKind::Text(x) | Ck3MetaKind::Binary(x) => x,
-        }
+    pub fn header(&self) -> &SaveHeader {
+        &self.header
     }
 
-    pub fn is_text(&self) -> bool {
-        self.header.kind().is_text()
+    pub fn kind(&self) -> &Ck3MetaKind {
+        &self.kind
     }
 
-    pub fn is_binary(&self) -> bool {
-        self.header.kind().is_binary()
-    }
-
-    pub fn parse(&self) -> Result<Ck3ParsedFile, Ck3Error> {
+    pub fn parse(&self) -> Result<Ck3ParsedFile<'a>, Ck3Error> {
         match self.kind {
             Ck3MetaKind::Text(x) => Ck3Text::from_raw(x).map(|kind| Ck3ParsedFile {
                 kind: Ck3ParsedFileKind::Text(kind),

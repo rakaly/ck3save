@@ -96,8 +96,7 @@ fn test_ck3_binary_save_tokens() -> Result<(), Box<dyn std::error::Error>> {
 fn test_roundtrip_header_melt() {
     let data = include_bytes!("fixtures/header.bin");
     let file = Ck3File::from_slice(&data[..]).unwrap();
-    let meta = file.meta();
-    let header = meta.parse().unwrap();
+    let header = file.meta().parse().unwrap();
     let binary = header.as_binary().unwrap();
     let out = binary.melter().melt(&EnvTokens).unwrap();
 
