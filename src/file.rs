@@ -195,6 +195,14 @@ impl<'a> Ck3Meta<'a> {
         }
     }
 
+    pub fn is_text(&self) -> bool {
+        self.header.kind().is_text()
+    }
+
+    pub fn is_binary(&self) -> bool {
+        self.header.kind().is_binary()
+    }
+
     pub fn parse(&self) -> Result<Ck3ParsedFile, Ck3Error> {
         match self.kind {
             Ck3MetaKind::Text(x) => Ck3Text::from_raw(x).map(|kind| Ck3ParsedFile {
