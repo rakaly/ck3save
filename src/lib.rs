@@ -13,7 +13,8 @@ let data = std::fs::read("assets/saves/Jarl_Ivar_of_the_Isles_867_01_01.ck3")?;
 let file = Ck3File::from_slice(&data)?;
 assert_eq!(file.encoding(), Encoding::TextZip);
 
-let meta = file.parse_metadata()?;
+let meta_data = file.meta();
+let meta = meta_data.parse()?;
 let header: HeaderBorrowed = meta.deserializer(&EnvTokens).deserialize()?;
 
 let mut zip_sink = Vec::new();

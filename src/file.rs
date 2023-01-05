@@ -98,7 +98,7 @@ impl<'a> Ck3File<'a> {
         }
     }
 
-    pub fn parse_metadata(&self) -> Result<Ck3ParsedFile<'a>, Ck3Error> {
+    pub fn meta(&self) -> Ck3Meta<'a> {
         match &self.kind {
             FileKind::Text(x) => {
                 // The metadata section should be way smaller than the total
@@ -108,33 +108,30 @@ impl<'a> Ck3File<'a> {
                 // converted the line endings from unix to dos.
                 let len = self.header.metadata_len() as usize;
                 let data = if len * 2 > x.len() { x } else { &x[..len] };
-
-                let text = Ck3Text::from_raw(data)?;
-                Ok(Ck3ParsedFile {
-                    kind: Ck3ParsedFileKind::Text(text),
-                })
+                Ck3Meta {
+                    kind: Ck3MetaKind::Text(data),
+                    header: self.header.clone(),
+                }
             }
             FileKind::Binary(x) => {
                 let metadata = x.get(..self.header.metadata_len() as usize).unwrap_or(x);
-                let binary = Ck3Binary::from_raw(metadata, self.header.clone())?;
-                Ok(Ck3ParsedFile {
-                    kind: Ck3ParsedFileKind::Binary(binary),
-                })
+                Ck3Meta {
+                    kind: Ck3MetaKind::Binary(metadata),
+                    header: self.header.clone(),
+                }
             }
             FileKind::Zip {
-                metadata, is_text, ..
-            } if *is_text => {
-                let text = Ck3Text::from_raw(metadata)?;
-                Ok(Ck3ParsedFile {
-                    kind: Ck3ParsedFileKind::Text(text),
-                })
-            }
-            FileKind::Zip { metadata, .. } => {
-                let binary = Ck3Binary::from_raw(metadata, self.header.clone())?;
-                Ok(Ck3ParsedFile {
-                    kind: Ck3ParsedFileKind::Binary(binary),
-                })
-            }
+                metadata,
+                is_text: true,
+                ..
+            } => Ck3Meta {
+                kind: Ck3MetaKind::Text(metadata),
+                header: self.header.clone(),
+            },
+            FileKind::Zip { metadata, .. } => Ck3Meta {
+                kind: Ck3MetaKind::Binary(metadata),
+                header: self.header.clone(),
+            },
         }
     }
 
@@ -176,6 +173,38 @@ impl<'a> Ck3File<'a> {
                         kind: Ck3ParsedFileKind::Binary(binary),
                     })
                 }
+            }
+        }
+    }
+}
+
+pub struct Ck3Meta<'a> {
+    kind: Ck3MetaKind<'a>,
+    header: SaveHeader,
+}
+
+enum Ck3MetaKind<'a> {
+    Text(&'a [u8]),
+    Binary(&'a [u8]),
+}
+
+impl<'a> Ck3Meta<'a> {
+    pub fn data(&self) -> &'a [u8] {
+        match self.kind {
+            Ck3MetaKind::Text(x) | Ck3MetaKind::Binary(x) => x,
+        }
+    }
+
+    pub fn parse(&self) -> Result<Ck3ParsedFile, Ck3Error> {
+        match self.kind {
+            Ck3MetaKind::Text(x) => Ck3Text::from_raw(x).map(|kind| Ck3ParsedFile {
+                kind: Ck3ParsedFileKind::Text(kind),
+            }),
+
+            Ck3MetaKind::Binary(x) => {
+                Ck3Binary::from_raw(x, self.header.clone()).map(|kind| Ck3ParsedFile {
+                    kind: Ck3ParsedFileKind::Binary(kind),
+                })
             }
         }
     }

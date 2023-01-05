@@ -9,7 +9,8 @@ fn test_ck3_text_header() {
     let data = include_bytes!("fixtures/header.txt");
     let file = Ck3File::from_slice(&data[..]).unwrap();
     assert_eq!(file.encoding(), Encoding::Text);
-    let header = file.parse_metadata().unwrap();
+    let meta = file.meta();
+    let header = meta.parse().unwrap();
     let header: HeaderOwned = header.deserializer(&EnvTokens).deserialize().unwrap();
     assert_eq!(header.meta_data.version, String::from("1.0.2"));
 }
@@ -19,7 +20,8 @@ fn test_ck3_text_header_borrowed() {
     let data = include_bytes!("fixtures/header.txt");
     let file = Ck3File::from_slice(&data[..]).unwrap();
     assert_eq!(file.encoding(), Encoding::Text);
-    let header = file.parse_metadata().unwrap();
+    let meta = file.meta();
+    let header = meta.parse().unwrap();
     let header: HeaderBorrowed = header.deserializer(&EnvTokens).deserialize().unwrap();
     assert_eq!(header.meta_data.version, String::from("1.0.2"));
 }

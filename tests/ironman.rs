@@ -11,7 +11,8 @@ fn test_ck3_binary_header() {
     let data = include_bytes!("fixtures/header.bin");
     let file = Ck3File::from_slice(&data[..]).unwrap();
     assert_eq!(file.encoding(), Encoding::Binary);
-    let header = file.parse_metadata().unwrap();
+    let meta = file.meta();
+    let header = meta.parse().unwrap();
     let header: HeaderOwned = header.deserializer(&EnvTokens).deserialize().unwrap();
     assert_eq!(header.meta_data.version, String::from("1.0.2"));
 }
@@ -21,7 +22,8 @@ fn test_ck3_binary_header_borrowed() {
     let data = include_bytes!("fixtures/header.bin");
     let file = Ck3File::from_slice(&data[..]).unwrap();
     assert_eq!(file.encoding(), Encoding::Binary);
-    let header = file.parse_metadata().unwrap();
+    let meta = file.meta();
+    let header = meta.parse().unwrap();
     let header: HeaderBorrowed = header.deserializer(&EnvTokens).deserialize().unwrap();
     assert_eq!(header.meta_data.version, String::from("1.0.2"));
 }
@@ -43,7 +45,8 @@ fn test_ck3_binary_save_header_borrowed() {
     let data = utils::request("af_Munso_867_Ironman.ck3");
     let file = Ck3File::from_slice(&data[..]).unwrap();
     assert_eq!(file.encoding(), Encoding::BinaryZip);
-    let header = file.parse_metadata().unwrap();
+    let meta = file.meta();
+    let header = meta.parse().unwrap();
     let header: HeaderBorrowed = header.deserializer(&EnvTokens).deserialize().unwrap();
     assert_eq!(file.encoding(), Encoding::BinaryZip);
     assert_eq!(header.meta_data.version, "1.0.2");
@@ -61,7 +64,8 @@ fn test_ck3_binary_autosave() -> Result<(), Box<dyn std::error::Error>> {
     let game: Gamestate = parsed_file.deserializer(&EnvTokens).deserialize()?;
     assert_eq!(game.meta_data.version, String::from("1.0.2"));
 
-    let header = file.parse_metadata()?;
+    let meta = file.meta();
+    let header = meta.parse().unwrap();
     let header: HeaderBorrowed = header.deserializer(&EnvTokens).deserialize()?;
     assert_eq!(header.meta_data.version, String::from("1.0.2"));
 
@@ -92,12 +96,14 @@ fn test_ck3_binary_save_tokens() -> Result<(), Box<dyn std::error::Error>> {
 fn test_roundtrip_header_melt() {
     let data = include_bytes!("fixtures/header.bin");
     let file = Ck3File::from_slice(&data[..]).unwrap();
-    let header = file.parse_metadata().unwrap();
+    let meta = file.meta();
+    let header = meta.parse().unwrap();
     let binary = header.as_binary().unwrap();
     let out = binary.melter().melt(&EnvTokens).unwrap();
 
     let file = Ck3File::from_slice(out.data()).unwrap();
-    let header = file.parse_metadata().unwrap();
+    let meta = file.meta();
+    let header = meta.parse().unwrap();
     let header: HeaderOwned = header.deserializer(&EnvTokens).deserialize().unwrap();
 
     assert_eq!(file.encoding(), Encoding::Text);
@@ -108,7 +114,8 @@ fn test_roundtrip_header_melt() {
 fn test_header_melt() {
     let data = include_bytes!("fixtures/header.bin");
     let file = Ck3File::from_slice(&data[..]).unwrap();
-    let header = file.parse_metadata().unwrap();
+    let meta = file.meta();
+    let header = meta.parse().unwrap();
     let binary = header.as_binary().unwrap();
     let out = binary.melter().melt(&EnvTokens).unwrap();
 
