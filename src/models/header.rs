@@ -15,6 +15,7 @@ pub struct HeaderBorrowed<'a> {
 #[derive(Debug, Deserialize)]
 pub struct MetadataOwned {
     pub version: String,
+    pub meta_player_name: String
 }
 
 #[derive(Debug, Deserialize)]
