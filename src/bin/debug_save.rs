@@ -9,6 +9,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut zip_sink = Vec::new();
     let file = file.parse(&mut zip_sink)?;
     let save: Gamestate = file.deserializer(&EnvTokens).deserialize()?;
-    print!("{:#?}", save.meta_data.version);
+    println!("{:#?}", save.meta_data.version);
+    println!("{:#?}", save.played_character.character);
     Ok(())
 }
