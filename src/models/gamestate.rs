@@ -15,13 +15,13 @@ pub struct Gamestate {
     pub traits_lookup: Vec<String>,
     pub dynasties: Dynasties,
     pub religion: Religions,
+    pub played_character: PlayedCharacter,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Dynasties {
     pub dynasty_house: HashMap<u64, DynastyHouse>,
-    pub dynasties: HashMap<u64, Dynasty>
-    pub played_character: PlayedCharacter,
+    pub dynasties: HashMap<u64, Dynasty>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -30,24 +30,24 @@ pub struct PlayedCharacter {
     pub character: u64
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct DynastyHouse {
     pub name: Option<String>,
     pub dynasty: u64
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Dynasty {
     pub key: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Province {
     pub holding: Holding,
     pub fort_level: Option<u64>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Holding {
     pub r#type: Option<String>,
     pub buildings: Vec<Building>,
@@ -56,22 +56,21 @@ pub struct Holding {
     pub income: Option<f32>
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Building {
     pub r#type: Option<String>
 }
 
 
-#[derive(Debug, Deserialize)]
 #[derive(Debug, Deserialize, Serialize)]
 pub struct LivingCharacter {
     pub alive_data: Option<AliveData>,
-    pub first_name: Option<String>,
+    pub first_name: String,
     pub dynasty_house: Option<u64>,
     pub birth: Option<Ck3Date>,
     #[serde(default = "default_false")]
     pub female: bool,
-    pub traits: Option<Vec<u64>>,
+    pub traits: Option<Vec<usize>>,
     pub skill: Vec<u64>,
     pub faith: Option<u64>
 }
@@ -86,19 +85,19 @@ pub struct AliveData {
     pub faith: Option<u64>
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Religions {
     pub religions: HashMap<u64, Religion>,
     pub faiths: HashMap<u64, Faith>
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Religion {
     pub tag: String,
     pub family: String
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 pub struct Faith {
     pub tag: String,
     pub religion: u64
