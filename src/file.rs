@@ -437,12 +437,17 @@ where
     }
 }
 
-fn translate_deserialize_error(e: jomini::DeserializeError) -> Ck3Error {
+fn translate_deserialize_error(e: jomini::Error) -> Ck3Error {
     let kind = match e.kind() {
-        &jomini::DeserializeErrorKind::UnknownToken { token_id } => {
-            Ck3ErrorKind::UnknownToken { token_id }
-        }
-        _ => Ck3ErrorKind::Deserialize(e.into()),
+        jomini::ErrorKind::Deserialize(x) => match x.kind() {
+            &jomini::DeserializeErrorKind::UnknownToken { token_id } => {
+                Ck3ErrorKind::UnknownToken { token_id }
+            }
+            _ => Ck3ErrorKind::Deserialize(e),
+        },
+        _ => Ck3ErrorKind::DeserializeImpl {
+            msg: String::from("unexpected error"),
+        },
     };
 
     Ck3Error::new(kind)
