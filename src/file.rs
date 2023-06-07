@@ -264,7 +264,7 @@ impl<'a> Ck3ParsedFile<'a> {
     {
         match &self.kind {
             Ck3ParsedFileKind::Text(x) => Ck3Deserializer {
-                kind: Ck3DeserializerKind::Text(x),
+                kind: Ck3DeserializerKind::Text(TextDeserializer::from_utf8_tape(&x.tape)),
             },
             Ck3ParsedFileKind::Binary(x) => Ck3Deserializer {
                 kind: Ck3DeserializerKind::Binary(x.deserializer(resolver)),
@@ -364,13 +364,10 @@ impl<'a> Ck3Text<'a> {
         self.tape.utf8_reader()
     }
 
-    pub fn deserialize<T>(&self) -> Result<T, Ck3Error>
-    where
-        T: Deserialize<'a>,
-    {
-        let deser = TextDeserializer::from_utf8_tape(&self.tape);
-        let result = deser.deserialize().map_err(Ck3ErrorKind::Deserialize)?;
-        Ok(result)
+    pub fn deserializer<'b, T>(&'b self) -> Ck3Deserializer<'a, 'b, ()> {
+        Ck3Deserializer {
+            kind: Ck3DeserializerKind::Text(TextDeserializer::from_utf8_tape(&self.tape)),
+        }
     }
 }
 
@@ -407,7 +404,7 @@ impl<'a> Ck3Binary<'a> {
 }
 
 enum Ck3DeserializerKind<'data, 'tape, RES> {
-    Text(&'tape Ck3Text<'data>),
+    Text(TextDeserializer<'data, 'tape, Utf8Encoding>),
     Binary(Ck3BinaryDeserializer<'data, 'tape, RES>),
 }
 
@@ -432,8 +429,184 @@ where
         T: Deserialize<'data>,
     {
         match &self.kind {
-            Ck3DeserializerKind::Text(x) => x.deserialize(),
+            Ck3DeserializerKind::Text(x) => x
+                .deserialize()
+                .map_err(|e| Ck3Error::new(Ck3ErrorKind::Deserialize(e))),
             Ck3DeserializerKind::Binary(x) => x.deserialize(),
+        }
+    }
+}
+
+fn translate_deserialize_error(e: jomini::DeserializeError) -> Ck3Error {
+    let kind = match e.kind() {
+        &jomini::DeserializeErrorKind::UnknownToken { token_id } => {
+            Ck3ErrorKind::UnknownToken { token_id }
+        }
+        _ => Ck3ErrorKind::Deserialize(e.into()),
+    };
+
+    Ck3Error::new(kind)
+}
+
+macro_rules! forward_deserialization {
+    ($method:ident) => {
+        fn $method<V>(self, visitor: V) -> Result<V::Value, Self::Error>
+        where
+            V: serde::de::Visitor<'de>,
+        {
+            match self.kind {
+                Ck3DeserializerKind::Text(x) => {
+                    x.$method(visitor).map_err(translate_deserialize_error)
+                }
+                Ck3DeserializerKind::Binary(x) => x
+                    .deser
+                    .$method(visitor)
+                    .map_err(translate_deserialize_error),
+            }
+        }
+    };
+}
+
+impl<'de, 'res, RES> serde::de::Deserializer<'de> for Ck3Deserializer<'de, 'res, RES>
+where
+    RES: TokenResolver,
+{
+    type Error = Ck3Error;
+
+    forward_deserialization!(deserialize_any);
+    forward_deserialization!(deserialize_bool);
+    forward_deserialization!(deserialize_i8);
+    forward_deserialization!(deserialize_i16);
+    forward_deserialization!(deserialize_i32);
+    forward_deserialization!(deserialize_i64);
+    forward_deserialization!(deserialize_u8);
+    forward_deserialization!(deserialize_u16);
+    forward_deserialization!(deserialize_u32);
+    forward_deserialization!(deserialize_u64);
+    forward_deserialization!(deserialize_f32);
+    forward_deserialization!(deserialize_f64);
+    forward_deserialization!(deserialize_char);
+    forward_deserialization!(deserialize_str);
+    forward_deserialization!(deserialize_string);
+    forward_deserialization!(deserialize_bytes);
+    forward_deserialization!(deserialize_byte_buf);
+    forward_deserialization!(deserialize_option);
+    forward_deserialization!(deserialize_unit);
+    forward_deserialization!(deserialize_seq);
+    forward_deserialization!(deserialize_map);
+    forward_deserialization!(deserialize_identifier);
+    forward_deserialization!(deserialize_ignored_any);
+
+    fn deserialize_unit_struct<V>(
+        self,
+        name: &'static str,
+        visitor: V,
+    ) -> Result<V::Value, Self::Error>
+    where
+        V: serde::de::Visitor<'de>,
+    {
+        match self.kind {
+            Ck3DeserializerKind::Text(x) => x
+                .deserialize_unit_struct(name, visitor)
+                .map_err(translate_deserialize_error),
+            Ck3DeserializerKind::Binary(x) => x
+                .deser
+                .deserialize_unit_struct(name, visitor)
+                .map_err(translate_deserialize_error),
+        }
+    }
+
+    fn deserialize_newtype_struct<V>(
+        self,
+        name: &'static str,
+        visitor: V,
+    ) -> Result<V::Value, Self::Error>
+    where
+        V: serde::de::Visitor<'de>,
+    {
+        match self.kind {
+            Ck3DeserializerKind::Text(x) => x
+                .deserialize_newtype_struct(name, visitor)
+                .map_err(translate_deserialize_error),
+            Ck3DeserializerKind::Binary(x) => x
+                .deser
+                .deserialize_newtype_struct(name, visitor)
+                .map_err(translate_deserialize_error),
+        }
+    }
+
+    fn deserialize_tuple<V>(self, len: usize, visitor: V) -> Result<V::Value, Self::Error>
+    where
+        V: serde::de::Visitor<'de>,
+    {
+        match self.kind {
+            Ck3DeserializerKind::Text(x) => x
+                .deserialize_tuple(len, visitor)
+                .map_err(translate_deserialize_error),
+            Ck3DeserializerKind::Binary(x) => x
+                .deser
+                .deserialize_tuple(len, visitor)
+                .map_err(translate_deserialize_error),
+        }
+    }
+
+    fn deserialize_tuple_struct<V>(
+        self,
+        name: &'static str,
+        len: usize,
+        visitor: V,
+    ) -> Result<V::Value, Self::Error>
+    where
+        V: serde::de::Visitor<'de>,
+    {
+        match self.kind {
+            Ck3DeserializerKind::Text(x) => x
+                .deserialize_tuple_struct(name, len, visitor)
+                .map_err(translate_deserialize_error),
+            Ck3DeserializerKind::Binary(x) => x
+                .deser
+                .deserialize_tuple_struct(name, len, visitor)
+                .map_err(translate_deserialize_error),
+        }
+    }
+
+    fn deserialize_struct<V>(
+        self,
+        name: &'static str,
+        fields: &'static [&'static str],
+        visitor: V,
+    ) -> Result<V::Value, Self::Error>
+    where
+        V: serde::de::Visitor<'de>,
+    {
+        match self.kind {
+            Ck3DeserializerKind::Text(x) => x
+                .deserialize_struct(name, fields, visitor)
+                .map_err(translate_deserialize_error),
+            Ck3DeserializerKind::Binary(x) => x
+                .deser
+                .deserialize_struct(name, fields, visitor)
+                .map_err(translate_deserialize_error),
+        }
+    }
+
+    fn deserialize_enum<V>(
+        self,
+        name: &'static str,
+        variants: &'static [&'static str],
+        visitor: V,
+    ) -> Result<V::Value, Self::Error>
+    where
+        V: serde::de::Visitor<'de>,
+    {
+        match self.kind {
+            Ck3DeserializerKind::Text(x) => x
+                .deserialize_enum(name, variants, visitor)
+                .map_err(translate_deserialize_error),
+            Ck3DeserializerKind::Binary(x) => x
+                .deser
+                .deserialize_enum(name, variants, visitor)
+                .map_err(translate_deserialize_error),
         }
     }
 }

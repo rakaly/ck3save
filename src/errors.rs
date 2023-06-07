@@ -1,4 +1,5 @@
 use crate::deflate::ZipInflationError;
+use std::fmt;
 use zip::result::ZipError;
 
 /// A Ck3 Error
@@ -55,6 +56,9 @@ pub enum Ck3ErrorKind {
 
     #[error("expected the binary integer: {0} to be parsed as a date")]
     InvalidDate(i32),
+
+    #[error("unable to deserialize due to: {msg}. This shouldn't occur as this is a deserializer wrapper")]
+    DeserializeImpl { msg: String },
 }
 
 impl From<ZipInflationError> for Ck3ErrorKind {
@@ -63,6 +67,14 @@ impl From<ZipInflationError> for Ck3ErrorKind {
             ZipInflationError::BadData { msg } => Ck3ErrorKind::ZipBadData { msg },
             ZipInflationError::EarlyEof { written } => Ck3ErrorKind::ZipEarlyEof { written },
         }
+    }
+}
+
+impl serde::de::Error for Ck3Error {
+    fn custom<T: fmt::Display>(msg: T) -> Self {
+        Ck3Error::new(Ck3ErrorKind::DeserializeImpl {
+            msg: msg.to_string(),
+        })
     }
 }
 
