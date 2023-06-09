@@ -9,6 +9,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut zip_sink = Vec::new();
     let file = file.parse(&mut zip_sink)?;
     let save: Gamestate = file.deserializer(&EnvTokens).deserialize()?;
-    print!("{:#?}", save.meta_data.version);
+    println!("{:#?}", save.meta_data.version);
+    println!("{:#?}", save.played_character.character);
+    println!("{:#?}", save.living.get(&save.played_character.character));
+    let traits = save
+        .living
+        .get(&save.played_character.character)
+        .unwrap()
+        .traits
+        .clone()
+        .unwrap();
+    let trait_strings = traits
+        .iter()
+        .map(|t| save.traits_lookup[*t].clone())
+        .collect::<Vec<String>>();
+    println!(
+        "{:#?}",
+        traits
+            .iter()
+            .map(|t| save.traits_lookup[*t].clone())
+            .collect::<Vec<String>>()
+    );
     Ok(())
 }
