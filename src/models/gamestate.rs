@@ -1,11 +1,13 @@
 use std::collections::HashMap;
-use super::MetadataOwned;
-use crate::flavor::reencode_float;
+
+
 use serde::{Deserialize, Deserializer, Serialize};
 
+use crate::{Ck3Date};
+use crate::flavor::reencode_float;
+use crate::maybe_object::MaybeObject;
 
-use crate::Ck3Date;
-
+use super::MetadataOwned;
 
 #[derive(Debug, Deserialize)]
 pub struct Gamestate {
@@ -20,9 +22,10 @@ pub struct Gamestate {
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct Dynasties {
-    pub dynasty_house: HashMap<u64, DynastyHouse>,
-    pub dynasties: HashMap<u64, Dynasty>,
+    pub dynasty_house: HashMap<u64, MaybeObject<DynastyHouse>>,
+    pub dynasties: HashMap<u64, MaybeObject<Dynasty>>,
 }
+
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct PlayedCharacter {
@@ -33,7 +36,7 @@ pub struct PlayedCharacter {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct DynastyHouse {
     pub name: Option<String>,
-    pub dynasty: u64
+    // pub dynasty: Option<String>
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]

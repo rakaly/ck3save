@@ -52,6 +52,7 @@ mod header;
 mod melt;
 pub mod models;
 mod tokens;
+mod maybe_object;
 
 pub use ck3date::*;
 pub use errors::*;
