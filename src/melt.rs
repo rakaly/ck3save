@@ -130,12 +130,6 @@ where
                 end_indices.push(token_idx);
                 wtr.write_object_start()?;
             }
-            BinaryToken::MixedContainer => {
-                wtr.start_mixed_mode();
-            }
-            BinaryToken::Equal => {
-                wtr.write_operator(jomini::text::Operator::Equal)?;
-            }
             BinaryToken::Array(_) => {
                 end_indices.push(token_idx);
                 wtr.write_array_start()?;
@@ -166,9 +160,6 @@ where
                     let _ = new_header.write(&mut data[..new_header.header_len()]);
                 }
             }
-            BinaryToken::Bool(x) => wtr.write_bool(*x)?,
-            BinaryToken::U32(x) => wtr.write_u32(*x)?,
-            BinaryToken::U64(x) => wtr.write_u64(*x)?,
             BinaryToken::I32(x) => {
                 if known_number
                     || (end_indices
@@ -276,14 +267,7 @@ where
                     }
                 },
             },
-            BinaryToken::Rgb(color) => {
-                wtr.write_header(b"rgb")?;
-                wtr.write_array_start()?;
-                wtr.write_u32(color.r)?;
-                wtr.write_u32(color.g)?;
-                wtr.write_u32(color.b)?;
-                wtr.write_end()?;
-            }
+            x => wtr.write_binary(x)?,
         }
 
         token_idx += 1;
