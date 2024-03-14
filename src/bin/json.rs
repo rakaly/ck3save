@@ -14,7 +14,13 @@ fn parsed_file_to_json(file: &Ck3ParsedFile) -> Result<(), Box<dyn std::error::E
         Ck3ParsedFileKind::Text(text) => json_to_stdout(text),
         Ck3ParsedFileKind::Binary(binary) => {
             let melted = binary.melter().verbatim(true).melt(&EnvTokens)?;
-            json_to_stdout(&Ck3Text::from_slice(melted.data())?);
+            let melted_file = Ck3File::from_slice(melted.data())?;
+            let mut unused = Vec::new();
+            let parsed_file = melted_file.parse(&mut unused)?;
+            let Ck3ParsedFileKind::Text(text) = parsed_file.kind() else {
+                panic!("expected melted ck3 text file");
+            };
+            json_to_stdout(text)
         }
     };
 
