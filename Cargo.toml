@@ -27,7 +27,7 @@ miniz_oxide = { version = "0.7", optional = true }
 
 [dev-dependencies]
 attohttpc = "0.26"
-twoway = "0.2"
+memchr = "2.7"
 zip = { version =  "0.6", default-features = false, features = ["deflate"] }
 
 # We override the test profile so that our tests run in a tolerable time as

@@ -74,8 +74,8 @@ fn test_ck3_binary_autosave() -> Result<(), Box<dyn std::error::Error>> {
         .melter()
         .on_failed_resolve(FailedResolveStrategy::Error)
         .melt(&EnvTokens)?;
-    twoway::find_bytes(out.data(), b"gold=0.044").unwrap();
-    twoway::find_bytes(out.data(), b"gold=4.647").unwrap();
+    memchr::memmem::find(out.data(), b"gold=0.044").unwrap();
+    memchr::memmem::find(out.data(), b"gold=4.647").unwrap();
 
     Ok(())
 }
@@ -215,8 +215,8 @@ fn decode_and_melt_gold_correctly() -> Result<(), Box<dyn std::error::Error>> {
         .on_failed_resolve(FailedResolveStrategy::Error)
         .melt(&EnvTokens)?;
 
-    twoway::find_bytes(out.data(), b"gold=133.04397").unwrap();
-    twoway::find_bytes(out.data(), b"vassal_power_value=200").unwrap();
+    memchr::memmem::find(out.data(), b"gold=133.04397").unwrap();
+    memchr::memmem::find(out.data(), b"vassal_power_value=200").unwrap();
     Ok(())
 }
 
