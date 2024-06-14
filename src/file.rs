@@ -184,6 +184,14 @@ impl<'a> Ck3File<'a> {
             }
         }
     }
+
+    pub fn melter(&self) -> Ck3Melter<'a> {
+        match &self.kind {
+            FileKind::Text(x) =>  Ck3Melter::new_text(x, self.header.clone()),
+            FileKind::Binary(x) => Ck3Melter::new_binary(x, self.header.clone()),
+            FileKind::Zip(x) => Ck3Melter::new_zip((*x).clone(), self.header.clone()),
+        }
+    }
 }
 
 /// Holds the metadata section of the save
@@ -220,6 +228,13 @@ impl<'a> Ck3Meta<'a> {
                     kind: Ck3ParsedFileKind::Binary(kind),
                 })
             }
+        }
+    }
+
+    pub fn melter(&self) -> Ck3Melter<'a> {
+        match self.kind {
+            Ck3MetaKind::Text(x) => Ck3Melter::new_text(x, self.header.clone()),
+            Ck3MetaKind::Binary(x) => Ck3Melter::new_binary(x, self.header.clone()),
         }
     }
 }
@@ -342,6 +357,10 @@ impl<'a> Ck3ZipFile<'a> {
         Ok(())
     }
 
+    pub fn reader(&self) -> crate::deflate::DeflateReader<'a> {
+        crate::deflate::DeflateReader::new(self.raw, crate::deflate::CompressionMethod::Deflate)
+    }
+
     pub fn size(&self) -> usize {
         self.size
     }
@@ -377,6 +396,7 @@ impl<'a> Ck3Text<'a> {
 /// A parsed Ck3 binary document
 pub struct Ck3Binary<'a> {
     tape: BinaryTape<'a>,
+    #[allow(dead_code)]
     header: SaveHeader,
 }
 
@@ -399,10 +419,6 @@ impl<'a> Ck3Binary<'a> {
             deser: BinaryDeserializer::builder_flavor(flavor_from_tape(&self.tape))
                 .from_tape(&self.tape, resolver),
         }
-    }
-
-    pub fn melter<'b>(&'b self) -> Ck3Melter<'a, 'b> {
-        Ck3Melter::new(&self.tape, &self.header)
     }
 }
 

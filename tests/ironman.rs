@@ -1,4 +1,6 @@
 #![cfg(ironman)]
+use std::io::Cursor;
+
 use ck3save::{
     models::{Gamestate, HeaderBorrowed, HeaderOwned},
     Ck3File, Encoding, EnvTokens, FailedResolveStrategy,
@@ -69,13 +71,10 @@ fn test_ck3_binary_autosave() -> Result<(), Box<dyn std::error::Error>> {
     let header: HeaderBorrowed = header.deserializer(&EnvTokens).deserialize()?;
     assert_eq!(header.meta_data.version, String::from("1.0.2"));
 
-    let binary = parsed_file.as_binary().unwrap();
-    let out = binary
-        .melter()
-        .on_failed_resolve(FailedResolveStrategy::Error)
-        .melt(&EnvTokens)?;
-    memchr::memmem::find(out.data(), b"gold=0.044").unwrap();
-    memchr::memmem::find(out.data(), b"gold=4.647").unwrap();
+    let mut out = Cursor::new(Vec::new());
+    file.melter().melt(&mut out, &EnvTokens)?;
+    memchr::memmem::find(&out.get_ref(), b"gold=0.044").unwrap();
+    memchr::memmem::find(&out.get_ref(), b"gold=4.647").unwrap();
 
     Ok(())
 }
@@ -96,11 +95,11 @@ fn test_ck3_binary_save_tokens() -> Result<(), Box<dyn std::error::Error>> {
 fn test_roundtrip_header_melt() {
     let data = include_bytes!("fixtures/header.bin");
     let file = Ck3File::from_slice(&data[..]).unwrap();
-    let header = file.meta().parse().unwrap();
-    let binary = header.as_binary().unwrap();
-    let out = binary.melter().melt(&EnvTokens).unwrap();
+    let header = file.meta();
+    let mut out = Cursor::new(Vec::new());
+    header.melter().melt(&mut out, &EnvTokens).unwrap();
 
-    let file = Ck3File::from_slice(out.data()).unwrap();
+    let file = Ck3File::from_slice(&out.get_ref()).unwrap();
     let meta = file.meta();
     let header = meta.parse().unwrap();
     let header: HeaderOwned = header.deserializer(&EnvTokens).deserialize().unwrap();
@@ -114,12 +113,11 @@ fn test_header_melt() {
     let data = include_bytes!("fixtures/header.bin");
     let file = Ck3File::from_slice(&data[..]).unwrap();
     let meta = file.meta();
-    let header = meta.parse().unwrap();
-    let binary = header.as_binary().unwrap();
-    let out = binary.melter().melt(&EnvTokens).unwrap();
+    let mut out = Cursor::new(Vec::new());
+    meta.melter().melt(&mut out, &EnvTokens).unwrap();
 
     let melted = include_bytes!("fixtures/header.melted");
-    assert_eq!(&melted[..], out.data());
+    assert_eq!(&melted[..], out.get_ref().as_slice());
 }
 
 #[test]
@@ -132,16 +130,10 @@ fn test_melt_no_crash() {
 fn test_ck3_binary_save_patch_1_3() -> Result<(), Box<dyn std::error::Error>> {
     let data = utils::request("ck3-1.3-test.ck3");
     let file = Ck3File::from_slice(&data[..])?;
-    let mut zip_sink = Vec::new();
-    let parsed_file = file.parse(&mut zip_sink)?;
+    let mut out = Cursor::new(Vec::new());
+    file.melter().melt(&mut out, &EnvTokens)?;
 
-    let binary = parsed_file.as_binary().unwrap();
-    let out = binary
-        .melter()
-        .on_failed_resolve(FailedResolveStrategy::Error)
-        .melt(&EnvTokens)?;
-
-    let file = Ck3File::from_slice(out.data())?;
+    let file = Ck3File::from_slice(&out.get_ref())?;
     let mut zip_sink = Vec::new();
     let parsed_file = file.parse(&mut zip_sink)?;
 
@@ -158,17 +150,11 @@ fn test_ck3_1_0_3_old_cloud_and_local_tokens() -> Result<(), Box<dyn std::error:
     let data = utils::request("ck3-1.0.3-local.ck3");
 
     let file = Ck3File::from_slice(&data[..])?;
-    let mut zip_sink = Vec::new();
-    let parsed_file = file.parse(&mut zip_sink)?;
     assert_eq!(file.encoding(), Encoding::BinaryZip);
+    let mut out = Cursor::new(Vec::new());
+    file.melter().melt(&mut out, &EnvTokens)?;
 
-    let binary = parsed_file.as_binary().unwrap();
-    let out = binary
-        .melter()
-        .on_failed_resolve(FailedResolveStrategy::Error)
-        .melt(&EnvTokens)?;
-
-    let file = Ck3File::from_slice(out.data())?;
+    let file = Ck3File::from_slice(&out.get_ref())?;
     let mut zip_sink = Vec::new();
     let parsed_file = file.parse(&mut zip_sink)?;
     assert_eq!(file.encoding(), Encoding::Text);
@@ -209,14 +195,11 @@ fn decode_and_melt_gold_correctly() -> Result<(), Box<dyn std::error::Error>> {
         Some(133.04397)
     );
 
-    let binary = parsed_file.as_binary().unwrap();
-    let out = binary
-        .melter()
-        .on_failed_resolve(FailedResolveStrategy::Error)
-        .melt(&EnvTokens)?;
+    let mut out = Cursor::new(Vec::new());
+    file.melter().melt(&mut out, &EnvTokens)?;
 
-    memchr::memmem::find(out.data(), b"gold=133.04397").unwrap();
-    memchr::memmem::find(out.data(), b"vassal_power_value=200").unwrap();
+    memchr::memmem::find(&out.get_ref(), b"gold=133.04397").unwrap();
+    memchr::memmem::find(&out.get_ref(), b"vassal_power_value=200").unwrap();
     Ok(())
 }
 
@@ -240,17 +223,11 @@ fn melt_patch14() -> Result<(), Box<dyn std::error::Error>> {
     let data = utils::request("ck3-1.4-normal.ck3");
     let expected = utils::request_zip("ck3-1.4-normal_melted.zip");
     let file = Ck3File::from_slice(&data[..])?;
-    let mut zip_sink = Vec::new();
-    let parsed_file = file.parse(&mut zip_sink)?;
-
-    let binary = parsed_file.as_binary().unwrap();
-    let out = binary
-        .melter()
-        .on_failed_resolve(FailedResolveStrategy::Error)
-        .melt(&EnvTokens)?;
+    let mut out = Cursor::new(Vec::new());
+    file.melter().melt(&mut out, &EnvTokens)?;
 
     assert!(
-        eq(out.data(), &expected),
+        eq(&out.get_ref(), &expected),
         "patch 1.4 did not melt currently"
     );
     Ok(())
@@ -261,17 +238,11 @@ fn melt_patch15() -> Result<(), Box<dyn std::error::Error>> {
     let data = utils::request("ck3-1.5-normal.ck3");
     let expected = utils::request_zip("ck3-1.5-normal_melted.zip");
     let file = Ck3File::from_slice(&data[..])?;
-    let mut zip_sink = Vec::new();
-    let parsed_file = file.parse(&mut zip_sink)?;
-
-    let binary = parsed_file.as_binary().unwrap();
-    let out = binary
-        .melter()
-        .on_failed_resolve(FailedResolveStrategy::Error)
-        .melt(&EnvTokens)?;
+    let mut out = Cursor::new(Vec::new());
+    file.melter().melt(&mut out, &EnvTokens)?;
 
     assert!(
-        eq(out.data(), &expected),
+        eq(&out.get_ref(), &expected),
         "patch 1.5 did not melt currently"
     );
     Ok(())
