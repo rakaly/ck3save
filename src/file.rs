@@ -11,15 +11,18 @@ use serde::Deserialize;
 use std::io::Cursor;
 use zip::result::ZipError;
 
+#[derive(Clone, Debug)]
+pub(crate) struct Ck3Zip<'a> {
+    pub(crate) archive: Ck3ZipFiles<'a>,
+    pub(crate) metadata: &'a [u8],
+    pub(crate) gamestate: VerifiedIndex,
+    pub(crate) is_text: bool,
+}
+
 enum FileKind<'a> {
     Text(&'a [u8]),
     Binary(&'a [u8]),
-    Zip {
-        archive: Ck3ZipFiles<'a>,
-        metadata: &'a [u8],
-        gamestate: VerifiedIndex,
-        is_text: bool,
-    },
+    Zip(Ck3Zip<'a>),
 }
 
 /// Entrypoint for parsing CK3 saves
@@ -48,12 +51,12 @@ impl<'a> Ck3File<'a> {
                 let is_text = !header.kind().is_binary();
                 Ok(Ck3File {
                     header,
-                    kind: FileKind::Zip {
+                    kind: FileKind::Zip(Ck3Zip{
                         archive: files,
                         gamestate: gamestate_idx,
                         metadata,
                         is_text,
-                    },
+                    }),
                 })
             }
             Err(ZipError::InvalidArchive(_)) => {
@@ -83,8 +86,8 @@ impl<'a> Ck3File<'a> {
         match &self.kind {
             FileKind::Text(_) => Encoding::Text,
             FileKind::Binary(_) => Encoding::Binary,
-            FileKind::Zip { is_text: true, .. } => Encoding::TextZip,
-            FileKind::Zip { is_text: false, .. } => Encoding::BinaryZip,
+            FileKind::Zip(Ck3Zip{ is_text: true, .. }) => Encoding::TextZip,
+            FileKind::Zip(Ck3Zip{ is_text: false, .. }) => Encoding::BinaryZip,
         }
     }
 
@@ -94,7 +97,7 @@ impl<'a> Ck3File<'a> {
     pub fn size(&self) -> usize {
         match &self.kind {
             FileKind::Text(x) | FileKind::Binary(x) => x.len(),
-            FileKind::Zip { gamestate, .. } => gamestate.size,
+            FileKind::Zip(Ck3Zip{ gamestate, .. }) => gamestate.size,
         }
     }
 
@@ -125,15 +128,15 @@ impl<'a> Ck3File<'a> {
                     header: self.header.clone(),
                 }
             }
-            FileKind::Zip {
+            FileKind::Zip(Ck3Zip{
                 metadata,
                 is_text: true,
                 ..
-            } => Ck3Meta {
+            }) => Ck3Meta {
                 kind: Ck3MetaKind::Text(metadata),
                 header: self.header.clone(),
             },
-            FileKind::Zip { metadata, .. } => Ck3Meta {
+            FileKind::Zip(Ck3Zip{ metadata, .. }) => Ck3Meta {
                 kind: Ck3MetaKind::Binary(metadata),
                 header: self.header.clone(),
             },
@@ -158,12 +161,12 @@ impl<'a> Ck3File<'a> {
                     kind: Ck3ParsedFileKind::Binary(binary),
                 })
             }
-            FileKind::Zip {
+            FileKind::Zip(Ck3Zip{
                 archive,
                 gamestate,
                 is_text,
                 ..
-            } => {
+            }) => {
                 let zip = archive.retrieve_file(*gamestate);
                 zip.read_to_end(zip_sink)?;
 
@@ -274,14 +277,14 @@ impl<'a> Ck3ParsedFile<'a> {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct VerifiedIndex {
+pub(crate) struct VerifiedIndex {
     data_start: usize,
     data_end: usize,
     size: usize,
 }
 
 #[derive(Debug, Clone)]
-struct Ck3ZipFiles<'a> {
+pub(crate) struct Ck3ZipFiles<'a> {
     archive: &'a [u8],
     gamestate_index: Option<VerifiedIndex>,
 }
@@ -325,7 +328,7 @@ impl<'a> Ck3ZipFiles<'a> {
     }
 }
 
-struct Ck3ZipFile<'a> {
+pub(crate) struct Ck3ZipFile<'a> {
     raw: &'a [u8],
     size: usize,
 }
