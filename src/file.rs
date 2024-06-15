@@ -51,7 +51,7 @@ impl<'a> Ck3File<'a> {
                 let is_text = !header.kind().is_binary();
                 Ok(Ck3File {
                     header,
-                    kind: FileKind::Zip(Ck3Zip{
+                    kind: FileKind::Zip(Ck3Zip {
                         archive: files,
                         gamestate: gamestate_idx,
                         metadata,
@@ -86,8 +86,8 @@ impl<'a> Ck3File<'a> {
         match &self.kind {
             FileKind::Text(_) => Encoding::Text,
             FileKind::Binary(_) => Encoding::Binary,
-            FileKind::Zip(Ck3Zip{ is_text: true, .. }) => Encoding::TextZip,
-            FileKind::Zip(Ck3Zip{ is_text: false, .. }) => Encoding::BinaryZip,
+            FileKind::Zip(Ck3Zip { is_text: true, .. }) => Encoding::TextZip,
+            FileKind::Zip(Ck3Zip { is_text: false, .. }) => Encoding::BinaryZip,
         }
     }
 
@@ -97,7 +97,7 @@ impl<'a> Ck3File<'a> {
     pub fn size(&self) -> usize {
         match &self.kind {
             FileKind::Text(x) | FileKind::Binary(x) => x.len(),
-            FileKind::Zip(Ck3Zip{ gamestate, .. }) => gamestate.size,
+            FileKind::Zip(Ck3Zip { gamestate, .. }) => gamestate.size,
         }
     }
 
@@ -128,7 +128,7 @@ impl<'a> Ck3File<'a> {
                     header: self.header.clone(),
                 }
             }
-            FileKind::Zip(Ck3Zip{
+            FileKind::Zip(Ck3Zip {
                 metadata,
                 is_text: true,
                 ..
@@ -136,7 +136,7 @@ impl<'a> Ck3File<'a> {
                 kind: Ck3MetaKind::Text(metadata),
                 header: self.header.clone(),
             },
-            FileKind::Zip(Ck3Zip{ metadata, .. }) => Ck3Meta {
+            FileKind::Zip(Ck3Zip { metadata, .. }) => Ck3Meta {
                 kind: Ck3MetaKind::Binary(metadata),
                 header: self.header.clone(),
             },
@@ -161,7 +161,7 @@ impl<'a> Ck3File<'a> {
                     kind: Ck3ParsedFileKind::Binary(binary),
                 })
             }
-            FileKind::Zip(Ck3Zip{
+            FileKind::Zip(Ck3Zip {
                 archive,
                 gamestate,
                 is_text,
@@ -187,7 +187,7 @@ impl<'a> Ck3File<'a> {
 
     pub fn melter(&self) -> Ck3Melter<'a> {
         match &self.kind {
-            FileKind::Text(x) =>  Ck3Melter::new_text(x, self.header.clone()),
+            FileKind::Text(x) => Ck3Melter::new_text(x, self.header.clone()),
             FileKind::Binary(x) => Ck3Melter::new_binary(x, self.header.clone()),
             FileKind::Zip(x) => Ck3Melter::new_zip((*x).clone(), self.header.clone()),
         }

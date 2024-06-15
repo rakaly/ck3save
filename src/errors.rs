@@ -1,6 +1,6 @@
 use crate::deflate::ZipInflationError;
-use std::{fmt, io};
 use jomini::binary;
+use std::{fmt, io};
 use zip::result::ZipError;
 
 /// A Ck3 Error

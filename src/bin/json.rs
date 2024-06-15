@@ -1,7 +1,4 @@
-use ck3save::{
-    file::Ck3Text,
-    Ck3File, EnvTokens,
-};
+use ck3save::{file::Ck3Text, Ck3File, EnvTokens};
 use std::{env, io::Cursor};
 
 fn json_to_stdout(file: &Ck3Text) {

@@ -65,15 +65,6 @@ enum QuoteKind {
 
     // Unquote scalar and containers
     UnquoteAll,
-
-    // Unquote only a scalar value
-    UnquoteScalar,
-
-    // Quote only a scalar value
-    QuoteScalar,
-
-    // Quote object keys
-    ForceQuote,
 }
 
 #[derive(Debug, Default)]
@@ -86,7 +77,7 @@ impl Quoter {
     #[inline]
     pub fn push(&mut self) {
         let next = match self.queued.take() {
-            Some(x @ QuoteKind::ForceQuote | x @ QuoteKind::UnquoteAll) => x,
+            Some(x @ QuoteKind::UnquoteAll) => x,
             _ => QuoteKind::Inactive,
         };
 
@@ -136,7 +127,18 @@ struct Blocks {
 impl Blocks {
     #[inline]
     pub fn push(&mut self) {
-        let next = self.queued.take().unwrap_or(Block::Inactive);
+        let next = match self.queued.take() {
+            Some(Block::AiStrategies) => {
+                self.in_ai_strageties = true;
+                Block::AiStrategies
+            }
+            Some(Block::Alive) => {
+                self.in_alive_data = true;
+                Block::Alive
+            }
+            _ => Block::Inactive,
+        };
+
         self.data.push(next);
     }
 
@@ -375,7 +377,9 @@ where
     let mut quoter = Quoter::default();
     let mut block = Blocks::default();
 
+    let mut has_read = false;
     while let Some(token) = reader.next()? {
+        has_read = true;
         if quoted_buffer_enabled {
             if matches!(token, Token::Equal) {
                 wtr.write_unquoted(&quoted_buffer)?;
@@ -426,10 +430,7 @@ where
                 }
                 QuoteKind::Inactive if wtr.expecting_key() => wtr.write_unquoted(x.as_bytes())?,
                 QuoteKind::Inactive => wtr.write_quoted(x.as_bytes())?,
-                QuoteKind::ForceQuote => wtr.write_quoted(x.as_bytes())?,
                 QuoteKind::UnquoteAll => wtr.write_unquoted(x.as_bytes())?,
-                QuoteKind::UnquoteScalar => wtr.write_unquoted(x.as_bytes())?,
-                QuoteKind::QuoteScalar => wtr.write_quoted(x.as_bytes())?,
             },
             Token::Unquoted(x) => {
                 wtr.write_unquoted(x.as_bytes())?;
@@ -481,7 +482,7 @@ where
                     } else if id == "perk" && block.in_alive_data {
                         quoter.queue(QuoteKind::UnquoteAll);
                     } else if flavor.unquote_token(id) {
-                        quoter.queue(QuoteKind::UnquoteScalar);
+                        quoter.queue(QuoteKind::UnquoteAll);
                     }
 
                     known_number = id == "seed" || id == "random_count";
@@ -520,7 +521,13 @@ where
                     }
                 },
             },
-            Token::Equal => wtr.write_operator(jomini::text::Operator::Equal)?,
+            Token::Equal => {
+                if wtr.at_array_value() {
+                    wtr.start_mixed_mode();
+                }
+
+                wtr.write_operator(jomini::text::Operator::Equal)?
+            }
             Token::U32(x) => wtr.write_u32(x)?,
             Token::U64(x) => wtr.write_u64(x)?,
             Token::Bool(x) => wtr.write_bool(x)?,
@@ -529,191 +536,8 @@ where
         }
     }
 
+    if has_read {
+        wtr.inner().write_all(b"\n")?;
+    }
     Ok(())
 }
-
-// pub(crate) fn melt<R>(melter: &Ck3Melter, resolver: &R) -> Result<MeltedDocument, MelterError>
-// where
-//     R: TokenResolver,
-// {
-//     let flavor = flavor_from_tape(melter.tape);
-//     let mut out = Vec::with_capacity(melter.tape.tokens().len() * 10);
-//     let _ = melter.header.write(&mut out);
-
-//     let mut unknown_tokens = HashSet::new();
-//     let mut wtr = TextWriterBuilder::new()
-//         .indent_char(b'\t')
-//         .indent_factor(1)
-//         .from_writer(out);
-//     let mut token_idx = 0;
-//     let mut known_number = false;
-//     let mut known_unquote = false;
-//     let mut known_date = false;
-//     let mut reencode_float_token = false;
-//     let mut alive_data_index = 0;
-//     let mut unquote_list_index = 0;
-//     let mut ai_strategies_index = 0;
-//     let mut metadata_index = 0;
-
-//     // We use this to know if we are looking at a key of `ai_strategies`
-//     // which is always written out as a number and not a date
-//     let mut end_indices = Vec::new();
-
-//     let tokens = melter.tape.tokens();
-//     while let Some(token) = tokens.get(token_idx) {
-//         match token {
-//             BinaryToken::Object(_) => {
-//                 end_indices.push(token_idx);
-//                 wtr.write_object_start()?;
-//             }
-//             BinaryToken::Array(_) => {
-//                 end_indices.push(token_idx);
-//                 wtr.write_array_start()?;
-//             }
-//             BinaryToken::End(x) => {
-//                 wtr.write_end()?;
-
-//                 end_indices.pop();
-//                 if *x == alive_data_index {
-//                     alive_data_index = 0;
-//                 }
-
-//                 if *x == unquote_list_index {
-//                     unquote_list_index = 0;
-//                 }
-
-//                 if *x == ai_strategies_index {
-//                     ai_strategies_index = 0;
-//                 }
-
-//                 if *x == metadata_index {
-//                     metadata_index = 0;
-//                     let data = wtr.inner();
-
-//                     let mut new_header = melter.header.clone();
-//                     new_header.set_kind(SaveHeaderKind::Text);
-//                     new_header.set_metadata_len((data.len() + 1 - new_header.header_len()) as u64);
-//                     let _ = new_header.write(&mut data[..new_header.header_len()]);
-//                 }
-//             }
-//             BinaryToken::I32(x) => {
-//                 if known_number
-//                     || (end_indices
-//                         .last()
-//                         .map_or(false, |&x| x == ai_strategies_index))
-//                 {
-//                     write!(wtr, "{}", x)?;
-//                     known_number = false;
-//                 } else if known_date {
-//                     if let Some(date) = crate::Ck3Date::from_binary(*x) {
-//                         wtr.write_date(date.game_fmt())?;
-//                     } else if melter.on_failed_resolve != FailedResolveStrategy::Error {
-//                         wtr.write_i32(*x)?;
-//                     } else {
-//                         return Err(MelterError::InvalidDate(*x));
-//                     }
-//                     known_date = false;
-//                 } else if let Some(date) = crate::Ck3Date::from_binary_heuristic(*x) {
-//                     wtr.write_date(date.game_fmt())?;
-//                 } else {
-//                     write!(wtr, "{}", x)?;
-//                 }
-//             }
-//             BinaryToken::Quoted(x) => {
-//                 if known_unquote || wtr.expecting_key() {
-//                     wtr.write_unquoted(x.as_bytes())?;
-//                 } else {
-//                     wtr.write_quoted(x.as_bytes())?;
-//                 }
-//             }
-//             BinaryToken::Unquoted(x) => {
-//                 wtr.write_unquoted(x.as_bytes())?;
-//             }
-//             BinaryToken::F32(x) => write!(wtr, "{:.6}", flavor.visit_f32(*x))?,
-//             BinaryToken::F64(x) if !reencode_float_token => {
-//                 write!(wtr, "{}", flavor.visit_f64(*x))?;
-//             }
-//             BinaryToken::F64(x) => {
-//                 let x = reencode_float(flavor.visit_f64(*x));
-//                 if x.fract().abs() > 1e-6 {
-//                     write!(wtr, "{:.5}", x)?;
-//                 } else {
-//                     write!(wtr, "{}", x)?;
-//                 }
-//                 reencode_float_token = false;
-//             }
-//             BinaryToken::Token(x) => match resolver.resolve(*x) {
-//                 Some(id) => {
-//                     if !melter.verbatim
-//                         && matches!(id, "ironman" | "ironman_manager")
-//                         && wtr.expecting_key()
-//                     {
-//                         token_idx = melter.skip_value_idx(token_idx);
-//                         continue;
-//                     }
-
-//                     if id == "meta_data" {
-//                         metadata_index = token_idx + 1;
-//                     }
-
-//                     if id == "alive_data" {
-//                         alive_data_index = token_idx + 1;
-//                     }
-
-//                     if id == "ai_strategies" {
-//                         ai_strategies_index = token_idx + 1;
-//                     }
-
-//                     if matches!(
-//                         id,
-//                         "settings" | "setting" | "perks" | "ethnicities" | "languages"
-//                     ) || (id == "perk" && alive_data_index != 0)
-//                     {
-//                         unquote_list_index = token_idx + 1;
-//                     }
-
-//                     known_number = id == "seed" || id == "random_count";
-//                     known_date = id == "birth";
-//                     known_unquote = unquote_list_index != 0 || flavor.unquote_token(id);
-
-//                     reencode_float_token = matches!(
-//                         id,
-//                         "vassal_power_value"
-//                             | "budget_war_chest"
-//                             | "budget_short_term"
-//                             | "budget_long_term"
-//                             | "budget_reserved"
-//                             | "damage_last_tick"
-//                     );
-//                     reencode_float_token |= alive_data_index != 0 && id == "gold";
-//                     reencode_float_token &= flavor.float_reencoding();
-//                     wtr.write_unquoted(id.as_bytes())?;
-//                 }
-//                 None => match melter.on_failed_resolve {
-//                     FailedResolveStrategy::Error => {
-//                         return Err(MelterError::UnknownToken { token_id: *x });
-//                     }
-//                     FailedResolveStrategy::Ignore if wtr.expecting_key() => {
-//                         token_idx = melter.skip_value_idx(token_idx);
-//                         continue;
-//                     }
-//                     _ => {
-//                         unknown_tokens.insert(*x);
-//                         write!(wtr, "__unknown_0x{:x}", x)?;
-//                     }
-//                 },
-//             },
-//             x => wtr.write_binary(x)?,
-//         }
-
-//         token_idx += 1;
-//     }
-
-//     let mut inner = wtr.into_inner();
-//     inner.push(b'\n');
-
-//     Ok(MeltedDocument {
-//         data: inner,
-//         unknown_tokens,
-//     })
-// }

@@ -1,5 +1,5 @@
-use std::{env, io::BufWriter};
 use ck3save::{Ck3File, EnvTokens, FailedResolveStrategy};
+use std::{env, io::BufWriter};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     let args: Vec<String> = env::args().collect();
