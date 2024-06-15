@@ -474,14 +474,13 @@ where
                         block.queue(Block::AiStrategies);
                     }
 
-                    if matches!(
+                    let is_unquote = matches!(
                         id,
                         "settings" | "setting" | "perks" | "ethnicities" | "languages"
-                    ) {
-                        quoter.queue(QuoteKind::UnquoteAll);
-                    } else if id == "perk" && block.in_alive_data {
-                        quoter.queue(QuoteKind::UnquoteAll);
-                    } else if flavor.unquote_token(id) {
+                    ) || id == "perk" && block.in_alive_data
+                        || flavor.unquote_token(id);
+
+                    if is_unquote {
                         quoter.queue(QuoteKind::UnquoteAll);
                     }
 
