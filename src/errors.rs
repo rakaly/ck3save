@@ -1,5 +1,6 @@
 use crate::deflate::ZipInflationError;
-use std::fmt;
+use jomini::binary;
+use std::{fmt, io};
 use zip::result::ZipError;
 
 /// A Ck3 Error
@@ -59,6 +60,9 @@ pub enum Ck3ErrorKind {
 
     #[error("unable to deserialize due to: {msg}. This shouldn't occur as this is a deserializer wrapper")]
     DeserializeImpl { msg: String },
+
+    #[error("io error: {0}")]
+    Io(#[from] io::Error),
 }
 
 impl From<ZipInflationError> for Ck3ErrorKind {
@@ -75,6 +79,38 @@ impl serde::de::Error for Ck3Error {
         Ck3Error::new(Ck3ErrorKind::DeserializeImpl {
             msg: msg.to_string(),
         })
+    }
+}
+
+impl From<jomini::Error> for Ck3Error {
+    fn from(value: jomini::Error) -> Self {
+        let kind = if matches!(value.kind(), jomini::ErrorKind::Deserialize(_)) {
+            match value.into_kind() {
+                jomini::ErrorKind::Deserialize(x) => match x.kind() {
+                    &jomini::DeserializeErrorKind::UnknownToken { token_id } => {
+                        Ck3ErrorKind::UnknownToken { token_id }
+                    }
+                    _ => Ck3ErrorKind::Deserialize(x.into()),
+                },
+                _ => unreachable!(),
+            }
+        } else {
+            Ck3ErrorKind::Parse(value)
+        };
+
+        Ck3Error::new(kind)
+    }
+}
+
+impl From<io::Error> for Ck3Error {
+    fn from(value: io::Error) -> Self {
+        Ck3Error::from(Ck3ErrorKind::from(value))
+    }
+}
+
+impl From<binary::ReaderError> for Ck3Error {
+    fn from(value: binary::ReaderError) -> Self {
+        Self::from(jomini::Error::from(value))
     }
 }
 
