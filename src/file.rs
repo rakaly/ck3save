@@ -374,7 +374,7 @@ pub struct Ck3Text<'a> {
 impl<'a> Ck3Text<'a> {
     pub fn from_slice(data: &'a [u8]) -> Result<Self, Ck3Error> {
         let header = SaveHeader::from_slice(data)?;
-        Self::from_raw(&data[..header.header_len()])
+        Self::from_raw(&data[header.header_len()..])
     }
 
     pub(crate) fn from_raw(data: &'a [u8]) -> Result<Self, Ck3Error> {
