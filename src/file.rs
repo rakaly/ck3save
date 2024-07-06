@@ -403,7 +403,7 @@ pub struct Ck3Binary<'a> {
 impl<'a> Ck3Binary<'a> {
     pub fn from_slice(data: &'a [u8]) -> Result<Self, Ck3Error> {
         let header = SaveHeader::from_slice(data)?;
-        Self::from_raw(&data[..header.header_len()], header)
+        Self::from_raw(&data[header.header_len()..], header)
     }
 
     pub(crate) fn from_raw(data: &'a [u8], header: SaveHeader) -> Result<Self, Ck3Error> {
