@@ -32,15 +32,3 @@ pub fn request<S: AsRef<str>>(input: S) -> Vec<u8> {
         }
     }
 }
-
-#[cfg(ironman)]
-pub fn request_zip<S: AsRef<str>>(input: S) -> Vec<u8> {
-    use std::io::{Cursor, Read};
-    let data = request(input);
-    let reader = Cursor::new(&data[..]);
-    let mut zip = zip::ZipArchive::new(reader).unwrap();
-    let mut zip_file = zip.by_index(0).unwrap();
-    let mut buffer = Vec::with_capacity(0);
-    zip_file.read_to_end(&mut buffer).unwrap();
-    buffer
-}

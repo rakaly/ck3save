@@ -1,4 +1,4 @@
-use ck3save::{file::Ck3Text, Ck3File, EnvTokens};
+use ck3save::{file::Ck3Text, BasicTokenResolver, Ck3File};
 use std::{env, io::Cursor};
 
 fn json_to_stdout(file: &Ck3Text) {
@@ -7,7 +7,9 @@ fn json_to_stdout(file: &Ck3Text) {
 
 fn parsed_file_to_json(file: &Ck3File) -> Result<(), Box<dyn std::error::Error>> {
     let mut out = Cursor::new(Vec::new());
-    file.melter().verbatim(true).melt(&mut out, &EnvTokens)?;
+    let file_data = std::fs::read("assets/ck3.txt").unwrap_or_default();
+    let resolver = BasicTokenResolver::from_text_lines(file_data.as_slice())?;
+    file.melter().verbatim(true).melt(&mut out, &resolver)?;
     json_to_stdout(&Ck3Text::from_slice(out.get_ref())?);
     Ok(())
 }

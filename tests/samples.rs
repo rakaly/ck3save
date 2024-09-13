@@ -1,7 +1,8 @@
 use ck3save::{
     models::{Gamestate, HeaderBorrowed, HeaderOwned},
-    Ck3File, Encoding, EnvTokens,
+    Ck3File, Encoding,
 };
+use std::collections::HashMap;
 mod utils;
 
 #[test]
@@ -11,7 +12,10 @@ fn test_ck3_text_header() {
     assert_eq!(file.encoding(), Encoding::Text);
     let meta = file.meta();
     let header = meta.parse().unwrap();
-    let header: HeaderOwned = header.deserializer(&EnvTokens).deserialize().unwrap();
+    let header: HeaderOwned = header
+        .deserializer(&HashMap::<u16, &str>::new())
+        .deserialize()
+        .unwrap();
     assert_eq!(header.meta_data.version, String::from("1.0.2"));
 }
 
@@ -22,7 +26,8 @@ fn test_ck3_text_header_borrowed() {
     assert_eq!(file.encoding(), Encoding::Text);
     let meta = file.meta();
     let header = meta.parse().unwrap();
-    let header: HeaderBorrowed = header.deserializer(&EnvTokens).deserialize().unwrap();
+    let resolver = HashMap::<u16, &str>::new();
+    let header: HeaderBorrowed = header.deserializer(&resolver).deserialize().unwrap();
     assert_eq!(header.meta_data.version, String::from("1.0.2"));
 }
 
@@ -33,7 +38,10 @@ fn test_ck3_text_save() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(file.encoding(), Encoding::TextZip);
     let mut zip_sink = Vec::new();
     let parsed_file = file.parse(&mut zip_sink).unwrap();
-    let game: Gamestate = parsed_file.deserializer(&EnvTokens).deserialize().unwrap();
+    let game: Gamestate = parsed_file
+        .deserializer(&HashMap::<u16, &str>::new())
+        .deserialize()
+        .unwrap();
     assert_eq!(game.meta_data.version, String::from("1.0.2"));
     Ok(())
 }
