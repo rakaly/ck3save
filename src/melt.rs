@@ -1,5 +1,5 @@
 use crate::{
-    file::Ck3Zip,
+    file::Ck3ZipFile,
     flavor::{reencode_float, Ck3BinaryFlavor, Ck3Flavor10, Ck3Flavor15},
     Ck3Error, Ck3ErrorKind, Encoding, SaveHeader, SaveHeaderKind,
 };
@@ -34,7 +34,13 @@ impl MeltedDocument {
 enum MeltInput<'data> {
     Text(&'data [u8]),
     Binary(&'data [u8]),
-    Zip(Ck3Zip<'data>),
+    ZipText {
+        file: Ck3ZipFile<'data>,
+        metadata_len: usize,
+    },
+    ZipBinary {
+        file: Ck3ZipFile<'data>,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -195,9 +201,21 @@ impl<'data> Ck3Melter<'data> {
         }
     }
 
-    pub(crate) fn new_zip(x: Ck3Zip<'data>, header: SaveHeader) -> Self {
+    pub(crate) fn new_zip_text(
+        file: Ck3ZipFile<'data>,
+        header: SaveHeader,
+        metadata_len: usize,
+    ) -> Self {
         Self {
-            input: MeltInput::Zip(x),
+            input: MeltInput::ZipText { file, metadata_len },
+            options: MeltOptions::default(),
+            header,
+        }
+    }
+
+    pub(crate) fn new_zip_binary(file: Ck3ZipFile<'data>, header: SaveHeader) -> Self {
+        Self {
+            input: MeltInput::ZipBinary { file },
             options: MeltOptions::default(),
             header,
         }
@@ -217,8 +235,8 @@ impl<'data> Ck3Melter<'data> {
         match &self.input {
             MeltInput::Text(_) => Encoding::Text,
             MeltInput::Binary(_) => Encoding::Binary,
-            MeltInput::Zip(z) if z.is_text => Encoding::TextZip,
-            MeltInput::Zip(_) => Encoding::BinaryZip,
+            MeltInput::ZipText { .. } => Encoding::TextZip,
+            MeltInput::ZipBinary { .. } => Encoding::BinaryZip,
         }
     }
 
@@ -238,26 +256,22 @@ impl<'data> Ck3Melter<'data> {
                 Ok(MeltedDocument::new())
             }
             MeltInput::Binary(x) => melt(x, output, resolver, self.options, self.header.clone()),
-            MeltInput::Zip(zip) => {
-                let file = zip.archive.retrieve_file(zip.gamestate);
-                if zip.is_text {
-                    let mut header = self.header.clone();
-                    header.set_kind(SaveHeaderKind::Text);
-                    header.set_metadata_len(zip.metadata.len() as u64);
-                    header.write(&mut output)?;
-                    let mut reader = file.reader();
-                    copy(&mut reader, &mut output).map_err(Ck3ErrorKind::from)?;
-                    Ok(MeltedDocument::new())
-                } else {
-                    melt(
-                        file.reader(),
-                        &mut output,
-                        resolver,
-                        self.options,
-                        self.header.clone(),
-                    )
-                }
+            MeltInput::ZipText { file, metadata_len } => {
+                let mut header = self.header.clone();
+                header.set_kind(SaveHeaderKind::Text);
+                header.set_metadata_len(*metadata_len as u64);
+                header.write(&mut output)?;
+                let mut reader = file.reader();
+                copy(&mut reader, &mut output).map_err(Ck3ErrorKind::from)?;
+                Ok(MeltedDocument::new())
             }
+            MeltInput::ZipBinary { file } => melt(
+                file.reader(),
+                &mut output,
+                resolver,
+                self.options,
+                self.header.clone(),
+            ),
         }
     }
 }

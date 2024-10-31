@@ -38,7 +38,8 @@ fn test_ck3_binary_header() {
     let file = Ck3File::from_slice(&data[..]).unwrap();
     assert_eq!(file.encoding(), Encoding::Binary);
     let meta = file.meta();
-    let header = meta.parse().unwrap();
+    let mut zip_sink = Vec::new();
+    let header = meta.parse(&mut zip_sink).unwrap();
     let header: HeaderOwned = header.deserializer(&*TOKENS).deserialize().unwrap();
     assert_eq!(header.meta_data.version, String::from("1.0.2"));
 }
@@ -50,7 +51,8 @@ fn test_ck3_binary_header_borrowed() {
     let file = Ck3File::from_slice(&data[..]).unwrap();
     assert_eq!(file.encoding(), Encoding::Binary);
     let meta = file.meta();
-    let header = meta.parse().unwrap();
+    let mut zip_sink = Vec::new();
+    let header = meta.parse(&mut zip_sink).unwrap();
     let header: HeaderBorrowed = header.deserializer(&*TOKENS).deserialize().unwrap();
     assert_eq!(header.meta_data.version, String::from("1.0.2"));
 }
@@ -78,10 +80,23 @@ fn test_ck3_binary_save_header_borrowed() {
     let file = Ck3File::from_slice(&data[..]).unwrap();
     assert_eq!(file.encoding(), Encoding::BinaryZip);
     let meta = file.meta();
-    let header = meta.parse().unwrap();
+    let mut zip_sink = Vec::new();
+    let header = meta.parse(&mut zip_sink).unwrap();
     let header: HeaderBorrowed = header.deserializer(&*TOKENS).deserialize().unwrap();
     assert_eq!(file.encoding(), Encoding::BinaryZip);
     assert_eq!(header.meta_data.version, "1.0.2");
+}
+
+#[test]
+fn test_ck3_binary_compressed_header() {
+    skip_if_no_tokens!();
+    let data = utils::request("von_konigsberg_867_01_01.ck3 ");
+    let file = Ck3File::from_slice(&data[..]).unwrap();
+    assert_eq!(file.encoding(), Encoding::BinaryZip);
+    let meta = file.meta();
+    let mut out = Cursor::new(Vec::new());
+    meta.melter().melt(&mut out, &*TOKENS).unwrap();
+    memchr::memmem::find(&out.get_ref(), b"meta_real_date=124.11.1").unwrap();
 }
 
 #[test]
@@ -100,7 +115,8 @@ fn test_ck3_binary_autosave() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(game.meta_data.version, String::from("1.0.2"));
 
     let meta = file.meta();
-    let header = meta.parse().unwrap();
+    let mut zip_sink = Vec::new();
+    let header = meta.parse(&mut zip_sink).unwrap();
     let header: HeaderBorrowed = header.deserializer(&*TOKENS).deserialize()?;
     assert_eq!(header.meta_data.version, String::from("1.0.2"));
 
@@ -138,7 +154,8 @@ fn test_roundtrip_header_melt() {
 
     let file = Ck3File::from_slice(&out.get_ref()).unwrap();
     let meta = file.meta();
-    let header = meta.parse().unwrap();
+    let mut zip_sink = Vec::new();
+    let header = meta.parse(&mut zip_sink).unwrap();
     let header: HeaderOwned = header.deserializer(&*TOKENS).deserialize().unwrap();
 
     assert_eq!(file.encoding(), Encoding::Text);

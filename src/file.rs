@@ -14,7 +14,7 @@ use zip::result::ZipError;
 #[derive(Clone, Debug)]
 pub(crate) struct Ck3Zip<'a> {
     pub(crate) archive: Ck3ZipFiles<'a>,
-    pub(crate) metadata: &'a [u8],
+    pub(crate) metadata: Ck3MetaKind<'a>,
     pub(crate) gamestate: VerifiedIndex,
     pub(crate) is_text: bool,
 }
@@ -47,6 +47,15 @@ impl<'a> Ck3File<'a> {
                 let gamestate_idx = files
                     .gamestate_index()
                     .ok_or(Ck3ErrorKind::ZipMissingEntry)?;
+
+                let metadata = match files.meta_index() {
+                    Some(index) if header.kind().is_binary() => {
+                        Ck3MetaKind::ZipBinary(files.retrieve_file(index))
+                    }
+                    Some(index) => Ck3MetaKind::ZipText(files.retrieve_file(index)),
+                    None if header.kind().is_binary() => Ck3MetaKind::InlinedBinary(metadata),
+                    None => Ck3MetaKind::InlinedText(metadata),
+                };
 
                 let is_text = !header.kind().is_binary();
                 Ok(Ck3File {
@@ -117,27 +126,19 @@ impl<'a> Ck3File<'a> {
                 };
 
                 Ck3Meta {
-                    kind: Ck3MetaKind::Text(data),
+                    kind: Ck3MetaKind::InlinedText(data),
                     header: self.header.clone(),
                 }
             }
             FileKind::Binary(x) => {
                 let metadata = x.get(..self.header.metadata_len() as usize).unwrap_or(x);
                 Ck3Meta {
-                    kind: Ck3MetaKind::Binary(metadata),
+                    kind: Ck3MetaKind::InlinedBinary(metadata),
                     header: self.header.clone(),
                 }
             }
-            FileKind::Zip(Ck3Zip {
-                metadata,
-                is_text: true,
-                ..
-            }) => Ck3Meta {
-                kind: Ck3MetaKind::Text(metadata),
-                header: self.header.clone(),
-            },
             FileKind::Zip(Ck3Zip { metadata, .. }) => Ck3Meta {
-                kind: Ck3MetaKind::Binary(metadata),
+                kind: metadata.clone(),
                 header: self.header.clone(),
             },
         }
@@ -189,7 +190,14 @@ impl<'a> Ck3File<'a> {
         match &self.kind {
             FileKind::Text(x) => Ck3Melter::new_text(x, self.header.clone()),
             FileKind::Binary(x) => Ck3Melter::new_binary(x, self.header.clone()),
-            FileKind::Zip(x) => Ck3Melter::new_zip((*x).clone(), self.header.clone()),
+            FileKind::Zip(x) if x.is_text => Ck3Melter::new_zip_text(
+                x.archive.retrieve_file(x.gamestate),
+                self.header.clone(),
+                x.metadata.len(),
+            ),
+            FileKind::Zip(x) => {
+                Ck3Melter::new_zip_binary(x.archive.retrieve_file(x.gamestate), self.header.clone())
+            }
         }
     }
 }
@@ -202,10 +210,21 @@ pub struct Ck3Meta<'a> {
 }
 
 /// Describes the format of the metadata section of the save
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Ck3MetaKind<'a> {
-    Text(&'a [u8]),
-    Binary(&'a [u8]),
+    InlinedText(&'a [u8]),
+    InlinedBinary(&'a [u8]),
+    ZipText(Ck3ZipFile<'a>),
+    ZipBinary(Ck3ZipFile<'a>),
+}
+
+impl<'a> Ck3MetaKind<'a> {
+    pub fn len(&self) -> usize {
+        match self {
+            Ck3MetaKind::InlinedBinary(x) | Ck3MetaKind::InlinedText(x) => x.len(),
+            Ck3MetaKind::ZipBinary(x) | Ck3MetaKind::ZipText(x) => x.size,
+        }
+    }
 }
 
 impl<'a> Ck3Meta<'a> {
@@ -217,24 +236,46 @@ impl<'a> Ck3Meta<'a> {
         &self.kind
     }
 
-    pub fn parse(&self) -> Result<Ck3ParsedFile<'a>, Ck3Error> {
-        match self.kind {
-            Ck3MetaKind::Text(x) => Ck3Text::from_raw(x).map(|kind| Ck3ParsedFile {
+    pub fn parse(&self, mut zip_sink: &'a mut Vec<u8>) -> Result<Ck3ParsedFile<'a>, Ck3Error> {
+        match &self.kind {
+            Ck3MetaKind::InlinedText(x) => Ck3Text::from_raw(x).map(|kind| Ck3ParsedFile {
                 kind: Ck3ParsedFileKind::Text(kind),
             }),
-
-            Ck3MetaKind::Binary(x) => {
+            Ck3MetaKind::InlinedBinary(x) => {
                 Ck3Binary::from_raw(x, self.header.clone()).map(|kind| Ck3ParsedFile {
                     kind: Ck3ParsedFileKind::Binary(kind),
+                })
+            }
+            Ck3MetaKind::ZipText(file) => {
+                let start_len = zip_sink.len();
+                file.read_to_end(&mut zip_sink)?;
+                Ck3Text::from_raw(&zip_sink[start_len..]).map(|kind| Ck3ParsedFile {
+                    kind: Ck3ParsedFileKind::Text(kind),
+                })
+            }
+            Ck3MetaKind::ZipBinary(file) => {
+                let start_len = zip_sink.len();
+                file.read_to_end(&mut zip_sink)?;
+                Ck3Binary::from_raw(&zip_sink[start_len..], self.header.clone()).map(|kind| {
+                    Ck3ParsedFile {
+                        kind: Ck3ParsedFileKind::Binary(kind),
+                    }
                 })
             }
         }
     }
 
     pub fn melter(&self) -> Ck3Melter<'a> {
-        match self.kind {
-            Ck3MetaKind::Text(x) => Ck3Melter::new_text(x, self.header.clone()),
-            Ck3MetaKind::Binary(x) => Ck3Melter::new_binary(x, self.header.clone()),
+        match &self.kind {
+            Ck3MetaKind::InlinedText(x) => Ck3Melter::new_text(x, self.header.clone()),
+            Ck3MetaKind::InlinedBinary(x) => Ck3Melter::new_binary(x, self.header.clone()),
+            Ck3MetaKind::ZipText(file) => {
+                let len = file.size();
+                Ck3Melter::new_zip_text(file.clone(), self.header.clone(), len)
+            }
+            Ck3MetaKind::ZipBinary(file) => {
+                Ck3Melter::new_zip_binary(file.clone(), self.header.clone())
+            }
         }
     }
 }
@@ -302,24 +343,29 @@ pub(crate) struct VerifiedIndex {
 pub(crate) struct Ck3ZipFiles<'a> {
     archive: &'a [u8],
     gamestate_index: Option<VerifiedIndex>,
+    meta_index: Option<VerifiedIndex>,
 }
 
 impl<'a> Ck3ZipFiles<'a> {
     pub fn new(archive: &mut zip::ZipArchive<Cursor<&'a [u8]>>, data: &'a [u8]) -> Self {
         let mut gamestate_index = None;
+        let mut meta_index = None;
 
         for index in 0..archive.len() {
             if let Ok(file) = archive.by_index_raw(index) {
                 let size = file.size() as usize;
                 let data_start = file.data_start() as usize;
                 let data_end = data_start + file.compressed_size() as usize;
+                let index = VerifiedIndex {
+                    data_start,
+                    data_end,
+                    size,
+                };
 
                 if file.name() == "gamestate" {
-                    gamestate_index = Some(VerifiedIndex {
-                        data_start,
-                        data_end,
-                        size,
-                    })
+                    gamestate_index = Some(index)
+                } else if file.name() == "meta" {
+                    meta_index = Some(index)
                 }
             }
         }
@@ -327,10 +373,11 @@ impl<'a> Ck3ZipFiles<'a> {
         Self {
             archive: data,
             gamestate_index,
+            meta_index,
         }
     }
 
-    pub fn retrieve_file(&self, index: VerifiedIndex) -> Ck3ZipFile {
+    pub fn retrieve_file(&self, index: VerifiedIndex) -> Ck3ZipFile<'a> {
         let raw = &self.archive[index.data_start..index.data_end];
         Ck3ZipFile {
             raw,
@@ -341,9 +388,14 @@ impl<'a> Ck3ZipFiles<'a> {
     pub fn gamestate_index(&self) -> Option<VerifiedIndex> {
         self.gamestate_index
     }
+
+    pub fn meta_index(&self) -> Option<VerifiedIndex> {
+        self.meta_index
+    }
 }
 
-pub(crate) struct Ck3ZipFile<'a> {
+#[derive(Debug, Clone)]
+pub struct Ck3ZipFile<'a> {
     raw: &'a [u8],
     size: usize,
 }

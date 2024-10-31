@@ -11,7 +11,8 @@ fn test_ck3_text_header() {
     let file = Ck3File::from_slice(&data[..]).unwrap();
     assert_eq!(file.encoding(), Encoding::Text);
     let meta = file.meta();
-    let header = meta.parse().unwrap();
+    let mut zip_sink = Vec::new();
+    let header = meta.parse(&mut zip_sink).unwrap();
     let header: HeaderOwned = header
         .deserializer(&HashMap::<u16, &str>::new())
         .deserialize()
@@ -25,7 +26,8 @@ fn test_ck3_text_header_borrowed() {
     let file = Ck3File::from_slice(&data[..]).unwrap();
     assert_eq!(file.encoding(), Encoding::Text);
     let meta = file.meta();
-    let header = meta.parse().unwrap();
+    let mut zip_sink = Vec::new();
+    let header = meta.parse(&mut zip_sink).unwrap();
     let resolver = HashMap::<u16, &str>::new();
     let header: HeaderBorrowed = header.deserializer(&resolver).deserialize().unwrap();
     assert_eq!(header.meta_data.version, String::from("1.0.2"));
