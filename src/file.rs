@@ -218,7 +218,7 @@ pub enum Ck3MetaKind<'a> {
     ZipBinary(Ck3ZipFile<'a>),
 }
 
-impl<'a> Ck3MetaKind<'a> {
+impl Ck3MetaKind<'_> {
     pub fn len(&self) -> usize {
         match self {
             Ck3MetaKind::InlinedBinary(x) | Ck3MetaKind::InlinedText(x) => x.len(),
@@ -236,7 +236,7 @@ impl<'a> Ck3Meta<'a> {
         &self.kind
     }
 
-    pub fn parse(&self, mut zip_sink: &'a mut Vec<u8>) -> Result<Ck3ParsedFile<'a>, Ck3Error> {
+    pub fn parse(&self, zip_sink: &'a mut Vec<u8>) -> Result<Ck3ParsedFile<'a>, Ck3Error> {
         match &self.kind {
             Ck3MetaKind::InlinedText(x) => Ck3Text::from_raw(x).map(|kind| Ck3ParsedFile {
                 kind: Ck3ParsedFileKind::Text(kind),
@@ -248,14 +248,14 @@ impl<'a> Ck3Meta<'a> {
             }
             Ck3MetaKind::ZipText(file) => {
                 let start_len = zip_sink.len();
-                file.read_to_end(&mut zip_sink)?;
+                file.read_to_end(zip_sink)?;
                 Ck3Text::from_raw(&zip_sink[start_len..]).map(|kind| Ck3ParsedFile {
                     kind: Ck3ParsedFileKind::Text(kind),
                 })
             }
             Ck3MetaKind::ZipBinary(file) => {
                 let start_len = zip_sink.len();
-                file.read_to_end(&mut zip_sink)?;
+                file.read_to_end(zip_sink)?;
                 Ck3Binary::from_raw(&zip_sink[start_len..], self.header.clone()).map(|kind| {
                     Ck3ParsedFile {
                         kind: Ck3ParsedFileKind::Binary(kind),
@@ -294,7 +294,7 @@ pub struct Ck3ParsedFile<'a> {
     kind: Ck3ParsedFileKind<'a>,
 }
 
-impl<'a> Ck3ParsedFile<'a> {
+impl Ck3ParsedFile<'_> {
     /// Returns the file as text
     pub fn as_text(&self) -> Option<&Ck3Text> {
         match &self.kind {
@@ -317,7 +317,7 @@ impl<'a> Ck3ParsedFile<'a> {
     }
 
     /// Prepares the file for deserialization into a custom structure
-    pub fn deserializer<'b, RES>(&'b self, resolver: &'b RES) -> Ck3Deserializer<RES>
+    pub fn deserializer<'b, RES>(&'b self, resolver: &'b RES) -> Ck3Deserializer<'b, 'b, RES>
     where
         RES: TokenResolver,
     {
@@ -463,7 +463,7 @@ impl<'a> Ck3Binary<'a> {
         Ok(Ck3Binary { tape, header })
     }
 
-    pub fn deserializer<'b, RES>(&'b self, resolver: &'b RES) -> Ck3BinaryDeserializer<RES>
+    pub fn deserializer<'b, RES>(&'b self, resolver: &'b RES) -> Ck3BinaryDeserializer<'b, 'b, RES>
     where
         RES: TokenResolver,
     {
@@ -484,7 +484,7 @@ pub struct Ck3Deserializer<'data, 'tape, RES> {
     kind: Ck3DeserializerKind<'data, 'tape, RES>,
 }
 
-impl<'data, 'tape, RES> Ck3Deserializer<'data, 'tape, RES>
+impl<'data, RES> Ck3Deserializer<'data, '_, RES>
 where
     RES: TokenResolver,
 {
@@ -543,7 +543,7 @@ macro_rules! forward_deserialization {
     };
 }
 
-impl<'de, 'res, RES> serde::de::Deserializer<'de> for Ck3Deserializer<'de, 'res, RES>
+impl<'de, RES> serde::de::Deserializer<'de> for Ck3Deserializer<'de, '_, RES>
 where
     RES: TokenResolver,
 {
@@ -692,7 +692,7 @@ pub struct Ck3BinaryDeserializer<'data, 'tape, RES> {
     deser: BinaryDeserializer<'tape, 'data, 'tape, RES, Box<dyn Ck3BinaryFlavor>>,
 }
 
-impl<'data, 'tape, RES> Ck3BinaryDeserializer<'data, 'tape, RES>
+impl<'data, RES> Ck3BinaryDeserializer<'data, '_, RES>
 where
     RES: TokenResolver,
 {

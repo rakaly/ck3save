@@ -26,7 +26,7 @@ pub(crate) enum DeflateReaderKind<'a> {
     Deflate(flate2::bufread::DeflateDecoder<&'a [u8]>),
 }
 
-impl<'a> std::fmt::Debug for DeflateReaderKind<'a> {
+impl std::fmt::Debug for DeflateReaderKind<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::Deflate(_) => f.debug_tuple("Deflate").finish(),
@@ -34,7 +34,7 @@ impl<'a> std::fmt::Debug for DeflateReaderKind<'a> {
     }
 }
 
-impl<'a> Read for DeflateReader<'a> {
+impl Read for DeflateReader<'_> {
     #[inline]
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         match &mut self.kind {
