@@ -1,4 +1,9 @@
-use jomini::{binary::BinaryFlavor, BinaryTape, BinaryToken, Encoding, Utf8Encoding};
+use crate::{Ck3Error, Ck3ErrorKind};
+use jomini::{
+    binary::{BinaryFlavor, Token},
+    Encoding, Utf8Encoding,
+};
+use std::io::{Cursor, Read};
 
 pub(crate) fn reencode_float(f: f64) -> f64 {
     // first reverse the flavor decoding to get raw val
@@ -32,13 +37,26 @@ impl<T: Ck3BinaryFlavor + ?Sized> Ck3BinaryFlavor for Box<T> {
     }
 }
 
-pub(crate) fn flavor_from_tape(tape: &BinaryTape) -> Box<dyn Ck3BinaryFlavor> {
-    match tape.tokens() {
-        [_, _, BinaryToken::Token(1423), BinaryToken::I32(x), ..] if *x > 5 => {
-            Box::new(Ck3Flavor15::new())
-        }
-        _ => Box::new(Ck3Flavor10::new()),
-    }
+pub fn flavor_reader<R>(mut reader: R) -> Result<(impl Read, Box<dyn Ck3BinaryFlavor>), Ck3Error>
+where
+    R: Read,
+{
+    let mut buf = [0u8; 16];
+    reader.read_exact(&mut buf)?;
+
+    // metadata = { version = <version> }
+    let mut lexer = jomini::binary::Lexer::new(&buf[10..]);
+    let Ok(Some(Token::I32(version))) = lexer.next_token() else {
+        return Err(Ck3Error::from(Ck3ErrorKind::InvalidHeader));
+    };
+
+    let flavor: Box<dyn Ck3BinaryFlavor> = if version > 5 {
+        Box::new(Ck3Flavor15::new())
+    } else {
+        Box::new(Ck3Flavor10::new())
+    };
+    let chained = Cursor::new(buf).chain(reader);
+    Ok((chained, flavor))
 }
 
 /// The ck3 binary flavor 1.5+

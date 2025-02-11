@@ -1,7 +1,6 @@
 use crate::{
-    file::Ck3ZipFile,
-    flavor::{reencode_float, Ck3BinaryFlavor, Ck3Flavor10, Ck3Flavor15},
-    Ck3Error, Ck3ErrorKind, Encoding, SaveHeader, SaveHeaderKind,
+    flavor::{flavor_reader, reencode_float, Ck3BinaryFlavor},
+    Ck3Error, Ck3ErrorKind, SaveHeader, SaveHeaderKind,
 };
 use jomini::{
     binary::{FailedResolveStrategy, Token, TokenReader, TokenResolver},
@@ -10,7 +9,7 @@ use jomini::{
 };
 use std::{
     collections::HashSet,
-    io::{copy, Cursor, Read, Write},
+    io::{Cursor, Read, Write},
 };
 
 /// Output from melting a binary save to plaintext
@@ -30,19 +29,6 @@ impl MeltedDocument {
     }
 }
 
-#[derive(Debug)]
-enum MeltInput<'data> {
-    Text(&'data [u8]),
-    Binary(&'data [u8]),
-    ZipText {
-        file: Ck3ZipFile<'data>,
-        metadata_len: usize,
-    },
-    ZipBinary {
-        file: Ck3ZipFile<'data>,
-    },
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct MeltOptions {
     verbatim: bool,
@@ -60,6 +46,17 @@ impl MeltOptions {
         Self {
             verbatim: false,
             on_failed_resolve: FailedResolveStrategy::Ignore,
+        }
+    }
+
+    pub fn verbatim(self, verbatim: bool) -> Self {
+        MeltOptions { verbatim, ..self }
+    }
+
+    pub fn on_failed_resolve(self, on_failed_resolve: FailedResolveStrategy) -> Self {
+        MeltOptions {
+            on_failed_resolve,
+            ..self
         }
     }
 }
@@ -177,105 +174,6 @@ impl Blocks {
     }
 }
 
-/// Convert a binary save to plaintext
-pub struct Ck3Melter<'data> {
-    input: MeltInput<'data>,
-    header: SaveHeader,
-    options: MeltOptions,
-}
-
-impl<'data> Ck3Melter<'data> {
-    pub(crate) fn new_text(x: &'data [u8], header: SaveHeader) -> Self {
-        Self {
-            input: MeltInput::Text(x),
-            options: MeltOptions::default(),
-            header,
-        }
-    }
-
-    pub(crate) fn new_binary(x: &'data [u8], header: SaveHeader) -> Self {
-        Self {
-            input: MeltInput::Binary(x),
-            options: MeltOptions::default(),
-            header,
-        }
-    }
-
-    pub(crate) fn new_zip_text(
-        file: Ck3ZipFile<'data>,
-        header: SaveHeader,
-        metadata_len: usize,
-    ) -> Self {
-        Self {
-            input: MeltInput::ZipText { file, metadata_len },
-            options: MeltOptions::default(),
-            header,
-        }
-    }
-
-    pub(crate) fn new_zip_binary(file: Ck3ZipFile<'data>, header: SaveHeader) -> Self {
-        Self {
-            input: MeltInput::ZipBinary { file },
-            options: MeltOptions::default(),
-            header,
-        }
-    }
-
-    pub fn verbatim(&mut self, verbatim: bool) -> &mut Self {
-        self.options.verbatim = verbatim;
-        self
-    }
-
-    pub fn on_failed_resolve(&mut self, strategy: FailedResolveStrategy) -> &mut Self {
-        self.options.on_failed_resolve = strategy;
-        self
-    }
-
-    pub fn input_encoding(&self) -> Encoding {
-        match &self.input {
-            MeltInput::Text(_) => Encoding::Text,
-            MeltInput::Binary(_) => Encoding::Binary,
-            MeltInput::ZipText { .. } => Encoding::TextZip,
-            MeltInput::ZipBinary { .. } => Encoding::BinaryZip,
-        }
-    }
-
-    pub fn melt<Writer, R>(
-        &mut self,
-        mut output: Writer,
-        resolver: &R,
-    ) -> Result<MeltedDocument, Ck3Error>
-    where
-        Writer: Write,
-        R: TokenResolver,
-    {
-        match &mut self.input {
-            MeltInput::Text(x) => {
-                self.header.write(&mut output)?;
-                output.write_all(x)?;
-                Ok(MeltedDocument::new())
-            }
-            MeltInput::Binary(x) => melt(x, output, resolver, self.options, self.header.clone()),
-            MeltInput::ZipText { file, metadata_len } => {
-                let mut header = self.header.clone();
-                header.set_kind(SaveHeaderKind::Text);
-                header.set_metadata_len(*metadata_len as u64);
-                header.write(&mut output)?;
-                let mut reader = file.reader();
-                copy(&mut reader, &mut output).map_err(Ck3ErrorKind::from)?;
-                Ok(MeltedDocument::new())
-            }
-            MeltInput::ZipBinary { file } => melt(
-                file.reader(),
-                &mut output,
-                resolver,
-                self.options,
-                self.header.clone(),
-            ),
-        }
-    }
-}
-
 pub(crate) fn melt<Reader, Writer, Resolver>(
     input: Reader,
     mut output: Writer,
@@ -288,59 +186,14 @@ where
     Writer: Write,
     Resolver: TokenResolver,
 {
-    let mut reader = TokenReader::new(input);
-
     let header_sink = Vec::new();
     let mut wtr = TextWriterBuilder::new()
         .indent_char(b'\t')
         .indent_factor(1)
         .from_writer(Cursor::new(header_sink));
 
-    let err = || Ck3Error::from(Ck3ErrorKind::InvalidHeader);
-    match reader.next()?.ok_or_else(err)? {
-        Token::Id(id) => match resolver.resolve(id) {
-            Some(name) => wtr.write_unquoted(name.as_bytes())?,
-            None => return Err(err()),
-        },
-        _ => return Err(err()),
-    };
-
-    match reader.next()?.ok_or_else(err)? {
-        Token::Equal => wtr.write_operator(jomini::text::Operator::Equal)?,
-        _ => return Err(err()),
-    };
-
-    match reader.next()?.ok_or_else(err)? {
-        Token::Open => wtr.write_object_start()?,
-        _ => return Err(err()),
-    };
-
-    match reader.next()?.ok_or_else(err)? {
-        Token::Id(id) => match resolver.resolve(id) {
-            Some(name) => wtr.write_unquoted(name.as_bytes())?,
-            None => return Err(err()),
-        },
-        _ => return Err(err()),
-    };
-
-    match reader.next()?.ok_or_else(err)? {
-        Token::Equal => wtr.write_operator(jomini::text::Operator::Equal)?,
-        _ => return Err(err()),
-    };
-
-    let version = match reader.next()?.ok_or_else(err)? {
-        Token::I32(version) => version,
-        _ => return Err(err()),
-    };
-
-    wtr.write_i32(version)?;
-
-    let flavor: Box<dyn Ck3BinaryFlavor> = if version > 5 {
-        Box::new(Ck3Flavor15::new())
-    } else {
-        Box::new(Ck3Flavor10::new())
-    };
-
+    let (reader, flavor) = flavor_reader(input)?;
+    let mut reader = TokenReader::new(reader);
     let mut unknown_tokens = HashSet::new();
 
     inner_melt(

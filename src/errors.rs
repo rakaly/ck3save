@@ -1,7 +1,5 @@
-use crate::deflate::ZipInflationError;
 use jomini::binary;
 use std::{fmt, io};
-use zip::result::ZipError;
 
 /// A Ck3 Error
 #[derive(thiserror::Error, Debug)]
@@ -29,22 +27,19 @@ impl From<Ck3ErrorKind> for Ck3Error {
 #[derive(thiserror::Error, Debug)]
 pub enum Ck3ErrorKind {
     #[error("unable to parse as zip: {0}")]
-    ZipArchive(#[from] ZipError),
+    Zip(#[from] rawzip::Error),
 
     #[error("missing gamestate entry in zip")]
     ZipMissingEntry,
 
-    #[error("unable to inflate zip entry: {msg}")]
-    ZipBadData { msg: String },
-
-    #[error("early eof, only able to write {written} bytes")]
-    ZipEarlyEof { written: usize },
+    #[error("unrecognized zip compression method")]
+    UnknownCompression,
 
     #[error("unable to parse due to: {0}")]
     Parse(#[source] jomini::Error),
 
     #[error("unable to deserialize due to: {0}")]
-    Deserialize(#[source] jomini::Error),
+    Deserialize(#[source] jomini::DeserializeError),
 
     #[error("error while writing output: {0}")]
     Writer(#[source] jomini::Error),
@@ -65,15 +60,6 @@ pub enum Ck3ErrorKind {
     Io(#[from] io::Error),
 }
 
-impl From<ZipInflationError> for Ck3ErrorKind {
-    fn from(x: ZipInflationError) -> Self {
-        match x {
-            ZipInflationError::BadData { msg } => Ck3ErrorKind::ZipBadData { msg },
-            ZipInflationError::EarlyEof { written } => Ck3ErrorKind::ZipEarlyEof { written },
-        }
-    }
-}
-
 impl serde::de::Error for Ck3Error {
     fn custom<T: fmt::Display>(msg: T) -> Self {
         Ck3Error::new(Ck3ErrorKind::DeserializeImpl {
@@ -84,18 +70,16 @@ impl serde::de::Error for Ck3Error {
 
 impl From<jomini::Error> for Ck3Error {
     fn from(value: jomini::Error) -> Self {
-        let kind = if matches!(value.kind(), jomini::ErrorKind::Deserialize(_)) {
-            match value.into_kind() {
-                jomini::ErrorKind::Deserialize(x) => match x.kind() {
-                    &jomini::DeserializeErrorKind::UnknownToken { token_id } => {
-                        Ck3ErrorKind::UnknownToken { token_id }
-                    }
-                    _ => Ck3ErrorKind::Deserialize(x.into()),
-                },
-                _ => unreachable!(),
-            }
-        } else {
-            Ck3ErrorKind::Parse(value)
+        let kind = match value.into_kind() {
+            jomini::ErrorKind::Deserialize(x) => match x.kind() {
+                &jomini::DeserializeErrorKind::UnknownToken { token_id } => {
+                    Ck3ErrorKind::UnknownToken { token_id }
+                }
+                _ => Ck3ErrorKind::Deserialize(x),
+            },
+            _ => Ck3ErrorKind::DeserializeImpl {
+                msg: String::from("unexpected error"),
+            },
         };
 
         Ck3Error::new(kind)
