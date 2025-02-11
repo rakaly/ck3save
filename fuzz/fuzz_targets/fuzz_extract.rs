@@ -1,29 +1,30 @@
 #![no_main]
-use ck3save::EnvTokens;
+use ck3save::{file::Ck3ParsedText, BasicTokenResolver};
 use libfuzzer_sys::fuzz_target;
+use std::sync::LazyLock;
+
+static TOKENS: LazyLock<BasicTokenResolver> = LazyLock::new(|| {
+    let file_data = std::fs::read("assets/ck3.txt").unwrap();
+    BasicTokenResolver::from_text_lines(file_data.as_slice()).unwrap()
+});
 
 fn run(data: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
     let file = ck3save::Ck3File::from_slice(&data)?;
 
-    let meta_data = file.meta();
-    let meta = meta_data.parse()?;
-    let _meta: Result<ck3save::models::HeaderBorrowed, _> =
-        meta.deserializer(&EnvTokens).deserialize();
+    let mut sink = std::io::sink();
+    let _ = file.melt(ck3save::MeltOptions::new(), &*TOKENS, &mut sink);
+    let _ = file.parse_save(&*TOKENS);
+    let _ = file.encoding();
 
-    let mut zip_sink = Vec::new();
-    let parsed_file = file.parse(&mut zip_sink)?;
-
-    match parsed_file.kind() {
-        ck3save::file::Ck3ParsedFileKind::Text(x) => {
-            x.reader().json().to_writer(std::io::sink())?;
+    match file.kind() {
+        ck3save::file::Ck3SliceFileKind::Text(x) => {
+            Ck3ParsedText::from_raw(x.get_ref())?
+                .reader()
+                .json()
+                .to_writer(std::io::sink())?;
         }
-        ck3save::file::Ck3ParsedFileKind::Binary(x) => {
-            x.melter().melt(&EnvTokens)?;
-        }
+        _ => {}
     }
-
-    let _game: Result<ck3save::models::Gamestate, _> =
-        parsed_file.deserializer(&EnvTokens).deserialize();
 
     Ok(())
 }

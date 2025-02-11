@@ -1,11 +1,11 @@
-use super::MetadataOwned;
+use super::Metadata;
 use crate::flavor::reencode_float;
 use serde::{Deserialize, Deserializer};
 use std::collections::HashMap;
 
 #[derive(Debug, Deserialize)]
 pub struct Gamestate {
-    pub meta_data: MetadataOwned,
+    pub meta_data: Metadata,
     pub living: HashMap<u64, LivingCharacter>,
 }
 
