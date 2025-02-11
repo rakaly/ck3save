@@ -147,7 +147,9 @@ impl<'a> Ck3SliceFile<'a> {
     {
         match &self.kind {
             Ck3SliceFileKind::Text(data) => {
-                self.header.write(&mut output)?;
+                let mut new_header = self.header.clone();
+                new_header.set_kind(crate::SaveHeaderKind::Text);
+                new_header.write(&mut output)?;
                 output.write_all(data.0)?;
                 Ok(MeltedDocument::new())
             }
