@@ -19,7 +19,7 @@ jomini =  { version = "0.27.0", features = ["json"] }
 serde = { version = "1", features = ["derive"] }
 thiserror = "1"
 flate2 = { version = "1.0.29", default-features = false, features = ["zlib-rs"] }
-rawzip = "0.0.5"
+rawzip = "0.0.6"
 
 [dev-dependencies]
 attohttpc = "0.26"
