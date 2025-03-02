@@ -25,11 +25,11 @@ impl Ck3File {
 
         let archive = rawzip::ZipArchive::with_max_search_space(64 * 1024)
             .locate_in_slice(data)
-            .map_err(Ck3ErrorKind::Zip);
+            .map_err(|(_, e)| Ck3ErrorKind::Zip(e));
 
         match archive {
             Ok(archive) => {
-                let archive = archive.into_owned();
+                let archive = archive.into_reader();
                 let mut buf = vec![0u8; rawzip::RECOMMENDED_BUFFER_SIZE];
                 let zip = Ck3Zip::try_from_archive(archive, &mut buf, header.clone())?;
                 Ok(Ck3SliceFile {
@@ -68,8 +68,7 @@ impl Ck3File {
                     kind: Ck3FsFileKind::Zip(Box::new(zip)),
                 })
             }
-            Err(e) => {
-                let mut file = e.into_inner();
+            Err((mut file, _)) => {
                 file.seek(std::io::SeekFrom::Start(SaveHeader::SIZE as u64))?;
                 if header.kind().is_binary() {
                     Ok(Ck3FsFile {
