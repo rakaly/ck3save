@@ -1,4 +1,4 @@
-use ck3save::{file::Ck3SliceFileKind, models::Header, Ck3File, Encoding};
+use ck3save::{file::Ck3SliceFileKind, models::Header, Ck3Date, Ck3File, Encoding};
 use std::collections::HashMap;
 mod utils;
 
@@ -20,6 +20,7 @@ fn test_ck3_text_header() {
     };
 
     assert_eq!(header.meta_data.version, String::from("1.0.2"));
+    assert_eq!(header.meta_data.meta_date, Ck3Date::from_ymd(867, 1, 1));
 }
 
 #[test]
