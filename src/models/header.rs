@@ -1,5 +1,5 @@
-use serde::Deserialize;
 use crate::Ck3Date;
+use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
 pub struct Header {

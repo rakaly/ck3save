@@ -4,7 +4,10 @@ use ck3save::{
     BasicTokenResolver, Ck3File, Encoding, MeltOptions,
 };
 use jomini::binary::TokenResolver;
-use std::{io::Cursor, sync::LazyLock};
+use std::{
+    io::{Cursor, Read},
+    sync::LazyLock,
+};
 
 mod utils;
 
@@ -220,7 +223,11 @@ fn decode_and_melt_gold_correctly() -> Result<(), Box<dyn std::error::Error>> {
         Some(11.087)
     );
     assert_eq!(
-        character.alive_data.as_ref().and_then(|x| x.gold),
+        character
+            .alive_data
+            .as_ref()
+            .and_then(|x| x.gold.as_ref())
+            .map(|x| x.value()),
         Some(133.04397)
     );
 
@@ -283,5 +290,40 @@ fn melt_patch15() -> Result<(), Box<dyn std::error::Error>> {
         expected.as_slice(),
         "patch 1.5 did not melt correctly"
     );
+    Ok(())
+}
+
+#[test]
+fn melt_patch15_slice() -> Result<(), Box<dyn std::error::Error>> {
+    if TOKENS.is_empty() {
+        return Ok(());
+    }
+    let mut file = utils::request_file("ck3-1.5-normal.ck3");
+    let mut content = Vec::new();
+    file.read_to_end(&mut content)?;
+    let expected = utils::inflate(utils::request_file("ck3-1.5-normal_melted.zip"));
+    let file = Ck3File::from_slice(&content)?;
+    let mut out = Cursor::new(Vec::new());
+    file.melt(MeltOptions::new(), &*TOKENS, &mut out)?;
+
+    assert_eq!(
+        out.get_ref().as_slice(),
+        expected.as_slice(),
+        "patch 1.5 did not melt correctly"
+    );
+    Ok(())
+}
+
+#[test]
+fn parse_patch_1_16_slice() -> Result<(), Box<dyn std::error::Error>> {
+    if TOKENS.is_empty() {
+        return Ok(());
+    }
+    let mut file = utils::request_file("patch_1_16.ck3");
+    let mut content = Vec::new();
+    file.read_to_end(&mut content)?;
+    let file = Ck3File::from_slice(&content)?;
+    let result = file.parse_save(&*TOKENS)?;
+    assert_eq!(result.meta_data.version, String::from("1.16.2.3"));
     Ok(())
 }
