@@ -24,6 +24,7 @@ rawzip = "0.3.1"
 [dev-dependencies]
 attohttpc = "0.26"
 memchr = "2.7"
+highway = "1.3.0"
 
 # We override the test profile so that our tests run in a tolerable time as
 # some of the asset files are heavyweight and can take a significant amount of

@@ -3,9 +3,10 @@ use ck3save::{
     models::{Gamestate, Header},
     BasicTokenResolver, Ck3File, Encoding, MeltOptions,
 };
+use highway::HighwayHash;
 use jomini::binary::TokenResolver;
 use std::{
-    io::{Cursor, Read},
+    io::{BufWriter, Cursor, Read},
     sync::LazyLock,
 };
 
@@ -325,5 +326,33 @@ fn parse_patch_1_16_slice() -> Result<(), Box<dyn std::error::Error>> {
     let file = Ck3File::from_slice(&content)?;
     let result = file.parse_save(&*TOKENS)?;
     assert_eq!(result.meta_data.version, String::from("1.16.2.3"));
+    Ok(())
+}
+
+#[test]
+fn patch_1_16_meta_melt() -> Result<(), Box<dyn std::error::Error>> {
+    if TOKENS.is_empty() {
+        return Ok(());
+    }
+    let file = utils::request_file("patch_1_16.ck3");
+    let file = Ck3File::from_file(file)?;
+    let Ck3FsFileKind::Zip(ck3_zip) = file.kind() else {
+        panic!("expected a zip file");
+    };
+
+    let mut meta = ck3_zip.meta().unwrap();
+
+    let hasher = highway::HighwayHasher::default();
+    let mut writer = BufWriter::with_capacity(0x8000, hasher);
+    meta.melt(MeltOptions::new(), &*TOKENS, &mut writer)?;
+    let hash = writer.into_inner().unwrap().finalize256();
+    let hex = format!(
+        "0x{:016x}{:016x}{:016x}{:016x}",
+        hash[0], hash[1], hash[2], hash[3]
+    );
+    assert_eq!(
+        hex,
+        "0x8c504b0729ac9dbd2f9172d6252bf6d523b66f66356f60ec7c479685a6fd0cf8"
+    );
     Ok(())
 }
