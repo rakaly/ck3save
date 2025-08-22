@@ -254,12 +254,13 @@ where
         buf: &mut [u8],
         header: SaveHeader,
     ) -> Result<Self, Ck3Error> {
-        let offset = archive.base_offset();
+        let mut offset = archive.directory_offset();
         let mut entries = archive.entries(buf);
         let mut gamestate = None;
         let mut metadata = None;
 
         while let Some(entry) = entries.next_entry().map_err(Ck3ErrorKind::Zip)? {
+            offset = offset.min(entry.local_header_offset());
             match entry.file_path().as_ref() {
                 b"gamestate" => gamestate = Some(entry.wayfinder()),
                 b"meta" => metadata = Some(entry.wayfinder()),
@@ -304,7 +305,7 @@ where
         Ok(data)
     }
 
-    pub fn meta(&self) -> Result<Ck3Entry<'_, rawzip::ZipReader<'_, R>, R>, Ck3Error> {
+    pub fn meta(&self) -> Result<Ck3Entry<rawzip::ZipReader<&R>, &R>, Ck3Error> {
         let kind = match &self.metadata {
             Ck3MetaKind::Inlined(x) => {
                 let mut entry = vec![0u8; x.len()];
@@ -373,18 +374,18 @@ pub enum Ck3MetaKind {
 }
 
 #[derive(Debug)]
-pub struct Ck3Entry<'archive, R, ReadAt> {
-    inner: Ck3EntryKind<'archive, R, ReadAt>,
+pub struct Ck3Entry<R, ReadAt> {
+    inner: Ck3EntryKind<R, ReadAt>,
     header: SaveHeader,
 }
 
 #[derive(Debug)]
-pub enum Ck3EntryKind<'archive, R, ReadAt> {
+pub enum Ck3EntryKind<R, ReadAt> {
     Inlined(Cursor<Vec<u8>>),
-    Zip(ZipVerifier<'archive, CompressedFileReader<R>, ReadAt>),
+    Zip(ZipVerifier<CompressedFileReader<R>, ReadAt>),
 }
 
-impl<R, ReadAt> Read for Ck3Entry<'_, R, ReadAt>
+impl<R, ReadAt> Read for Ck3Entry<R, ReadAt>
 where
     R: Read,
     ReadAt: ReaderAt,
@@ -397,7 +398,7 @@ where
     }
 }
 
-impl<'archive, R, ReadAt> Ck3Entry<'archive, R, ReadAt>
+impl<R, ReadAt> Ck3Entry<R, ReadAt>
 where
     R: Read,
     ReadAt: ReaderAt,
@@ -405,7 +406,7 @@ where
     pub fn deserializer<'a, RES>(
         &'a mut self,
         resolver: RES,
-    ) -> Ck3Modeller<&'a mut Ck3Entry<'archive, R, ReadAt>, RES>
+    ) -> Ck3Modeller<&'a mut Ck3Entry<R, ReadAt>, RES>
     where
         RES: TokenResolver,
     {
