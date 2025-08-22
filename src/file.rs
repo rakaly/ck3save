@@ -19,7 +19,7 @@ pub struct Ck3File {}
 
 impl Ck3File {
     /// Creates a CK3 file from a slice of data
-    pub fn from_slice(data: &[u8]) -> Result<Ck3SliceFile, Ck3Error> {
+    pub fn from_slice(data: &[u8]) -> Result<Ck3SliceFile<'_>, Ck3Error> {
         let header = SaveHeader::from_slice(data)?;
         let data = &data[header.header_len()..];
 
@@ -103,7 +103,7 @@ pub struct Ck3SliceFile<'a> {
 }
 
 impl<'a> Ck3SliceFile<'a> {
-    pub fn kind(&self) -> &Ck3SliceFileKind {
+    pub fn kind(&self) -> &Ck3SliceFileKind<'a> {
         &self.kind
     }
 
@@ -457,7 +457,7 @@ impl<'a> Ck3ParsedText<'a> {
         Ok(Ck3ParsedText { tape })
     }
 
-    pub fn reader(&self) -> ObjectReader<Utf8Encoding> {
+    pub fn reader(&self) -> ObjectReader<'_, '_, Utf8Encoding> {
         self.tape.utf8_reader()
     }
 }
