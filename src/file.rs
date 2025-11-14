@@ -21,12 +21,12 @@ impl Ck3File {
     /// Creates a CK3 file from a slice of data
     pub fn from_slice(data: &[u8]) -> Result<Ck3SliceFile<'_>, Ck3Error> {
         let header = SaveHeader::from_slice(data)?;
-        let data = &data[header.header_len()..];
 
         let archive = rawzip::ZipArchive::with_max_search_space(64 * 1024)
             .locate_in_slice(data)
             .map_err(|(_, e)| Ck3ErrorKind::Zip(e));
 
+        let header_len = header.header_len();
         match archive {
             Ok(archive) => {
                 let archive = archive.into_reader();
@@ -40,13 +40,13 @@ impl Ck3File {
             _ if header.kind().is_binary() => Ok(Ck3SliceFile {
                 header: header.clone(),
                 kind: Ck3SliceFileKind::Binary(Ck3Binary {
-                    reader: data,
+                    reader: &data[header_len..],
                     header,
                 }),
             }),
             _ => Ok(Ck3SliceFile {
                 header,
-                kind: Ck3SliceFileKind::Text(Ck3Text(data)),
+                kind: Ck3SliceFileKind::Text(Ck3Text(&data[header_len..])),
             }),
         }
     }
