@@ -354,5 +354,28 @@ fn patch_1_16_meta_melt() -> Result<(), Box<dyn std::error::Error>> {
         hex,
         "0x8c504b0729ac9dbd2f9172d6252bf6d523b66f66356f60ec7c479685a6fd0cf8"
     );
+
+    let mut file = utils::request_file("patch_1_16.ck3");
+    let mut buf = Vec::new();
+    file.read_to_end(&mut buf)?;
+    let file = Ck3File::from_slice(&buf)?;
+    let Ck3SliceFileKind::Zip(ck3_zip) = file.kind() else {
+        panic!("expected a zip file");
+    };
+
+    let mut meta = ck3_zip.meta().unwrap();
+    let hasher = highway::HighwayHasher::default();
+    let mut writer = BufWriter::with_capacity(0x8000, hasher);
+    meta.melt(MeltOptions::new(), &*TOKENS, &mut writer)?;
+    let hash = writer.into_inner().unwrap().finalize256();
+    let hex = format!(
+        "0x{:016x}{:016x}{:016x}{:016x}",
+        hash[0], hash[1], hash[2], hash[3]
+    );
+    assert_eq!(
+        hex,
+        "0x8c504b0729ac9dbd2f9172d6252bf6d523b66f66356f60ec7c479685a6fd0cf8"
+    );
+
     Ok(())
 }
