@@ -23,7 +23,7 @@ impl Gamestate {
                 .deserializer()
                 .deserialize()
                 .map_err(Ck3ErrorKind::Deserialize)?),
-            JominiFileKind::Uncompressed(SaveDataKind::Binary(x)) => Ok(x
+            JominiFileKind::Uncompressed(SaveDataKind::Binary(x)) => Ok((&*x)
                 .deserializer(resolver)?
                 .deserialize()
                 .map_err(Ck3ErrorKind::Deserialize)?),

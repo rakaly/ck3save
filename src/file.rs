@@ -25,7 +25,7 @@ pub trait Ck3BinaryDeserialization {
     ) -> Result<Ck3BinaryDeserializer<'res, RES, impl Read + '_>, Ck3Error>;
 }
 
-impl<R: ReaderAt> Ck3BinaryDeserialization for SaveData<BinaryEncoding, R> {
+impl<R: ReaderAt> Ck3BinaryDeserialization for &'_ SaveData<BinaryEncoding, R> {
     fn deserializer<'res, RES: TokenResolver>(
         &mut self,
         resolver: &'res RES,
@@ -85,7 +85,7 @@ pub trait Ck3TextMelt {
         Writer: Write;
 }
 
-impl<R: ReaderAt> Ck3Melt for Ck3File<R> {
+impl<R: ReaderAt> Ck3Melt for &'_ Ck3File<R> {
     fn melt<Resolver, Writer>(
         &mut self,
         options: MeltOptions,
@@ -115,7 +115,7 @@ impl<R: ReaderAt> Ck3Melt for Ck3File<R> {
     }
 }
 
-impl<R: ReaderAt> Ck3Melt for JominiZip<R> {
+impl<R: ReaderAt> Ck3Melt for &'_ JominiZip<R> {
     fn melt<Resolver, Writer>(
         &mut self,
         options: MeltOptions,
@@ -145,7 +145,7 @@ impl<R: ReaderAt> Ck3Melt for JominiZip<R> {
     }
 }
 
-impl<R: ReaderAt> Ck3Melt for SaveData<BinaryEncoding, R> {
+impl<R: ReaderAt> Ck3Melt for &'_ SaveData<BinaryEncoding, R> {
     fn melt<Resolver, Writer>(
         &mut self,
         options: MeltOptions,
@@ -184,7 +184,7 @@ impl<R: Read> Ck3Melt for SaveMetadataKind<R> {
     }
 }
 
-impl<R: ReaderAt> Ck3TextMelt for SaveData<TextEncoding, R> {
+impl<R: ReaderAt> Ck3TextMelt for &'_ SaveData<TextEncoding, R> {
     fn melt<Writer>(&mut self, mut output: Writer) -> Result<melt::MeltedDocument, Ck3Error>
     where
         Writer: Write,
