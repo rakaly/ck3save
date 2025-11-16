@@ -1,4 +1,4 @@
-use ck3save::{BasicTokenResolver, Ck3File, FailedResolveStrategy, MeltOptions};
+use ck3save::{BasicTokenResolver, Ck3File, Ck3Melt, FailedResolveStrategy, MeltOptions};
 use std::{env, io::BufWriter};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
