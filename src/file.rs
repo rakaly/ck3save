@@ -6,6 +6,7 @@ use jomini::{
     text::de::TextReaderDeserializer,
     Utf8Encoding,
 };
+use serde::de::DeserializeOwned;
 use std::io::{Read, Write};
 
 pub use jomini::envelope::JominiFile as Ck3File;
@@ -223,5 +224,39 @@ impl<R: Read> Ck3Melt for SaveMetadata<BinaryEncoding, R> {
     {
         let header = self.header().clone();
         melt::melt(self, output, resolver, options, header)
+    }
+}
+
+pub trait DeserializeCk3 {
+    fn deserialize<T>(&mut self, resolver: impl TokenResolver) -> Result<T, Ck3Error>
+    where
+        T: DeserializeOwned;
+}
+
+impl<R: ReaderAt> DeserializeCk3 for &'_ Ck3File<R> {
+    fn deserialize<T>(&mut self, resolver: impl TokenResolver) -> Result<T, Ck3Error>
+    where
+        T: DeserializeOwned,
+    {
+        match self.kind() {
+            JominiFileKind::Uncompressed(SaveDataKind::Text(x)) => Ok(x
+                .deserializer()
+                .deserialize()
+                .map_err(Ck3ErrorKind::Deserialize)?),
+            JominiFileKind::Uncompressed(SaveDataKind::Binary(x)) => Ok((&*x)
+                .deserializer(&resolver)?
+                .deserialize()
+                .map_err(Ck3ErrorKind::Deserialize)?),
+            JominiFileKind::Zip(x) => Ok(match x.gamestate().map_err(Ck3ErrorKind::Envelope)? {
+                SaveContentKind::Text(mut x) => x
+                    .deserializer()
+                    .deserialize()
+                    .map_err(Ck3ErrorKind::Deserialize)?,
+                SaveContentKind::Binary(mut x) => x
+                    .deserializer(&resolver)?
+                    .deserialize()
+                    .map_err(Ck3ErrorKind::Deserialize)?,
+            }),
+        }
     }
 }

@@ -1,6 +1,6 @@
 use ck3save::{
     models::{Gamestate, Header},
-    Ck3Date, Ck3File, JominiFileKind, SaveDataKind, SaveHeaderKind,
+    Ck3Date, Ck3File, DeserializeCk3, JominiFileKind, SaveDataKind, SaveHeaderKind,
 };
 use std::collections::HashMap;
 mod utils;
@@ -22,9 +22,9 @@ fn test_ck3_text_header() {
 #[test]
 fn test_ck3_text_save() -> Result<(), Box<dyn std::error::Error>> {
     let file = utils::request_file("Jarl_Ivar_of_the_Isles_867_01_01.ck3");
-    let mut file = Ck3File::from_file(file).unwrap();
+    let file = Ck3File::from_file(file).unwrap();
     assert_eq!(file.header().kind(), SaveHeaderKind::UnifiedText);
-    let game = Gamestate::from_file(&mut file, &HashMap::<u16, &str>::new()).unwrap();
+    let game: Gamestate = (&file).deserialize(&HashMap::<u16, &str>::new()).unwrap();
     assert_eq!(game.meta_data.version, String::from("1.0.2"));
     Ok(())
 }

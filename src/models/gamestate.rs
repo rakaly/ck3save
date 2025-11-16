@@ -1,8 +1,5 @@
 use super::Metadata;
 use crate::flavor::reencode_float;
-use crate::{
-    Ck3BinaryDeserialization, Ck3ErrorKind, JominiFileKind, SaveContentKind, SaveDataKind,
-};
 use serde::{de::Visitor, Deserialize, Deserializer};
 use std::collections::HashMap;
 use std::fmt;
@@ -11,34 +8,6 @@ use std::fmt;
 pub struct Gamestate {
     pub meta_data: Metadata,
     pub living: HashMap<u64, LivingCharacter>,
-}
-
-impl Gamestate {
-    pub fn from_file(
-        file: &mut crate::Ck3File<impl jomini::envelope::ReaderAt>,
-        resolver: &impl jomini::binary::TokenResolver,
-    ) -> Result<Self, crate::Ck3Error> {
-        match file.kind_mut() {
-            JominiFileKind::Uncompressed(SaveDataKind::Text(x)) => Ok(x
-                .deserializer()
-                .deserialize()
-                .map_err(Ck3ErrorKind::Deserialize)?),
-            JominiFileKind::Uncompressed(SaveDataKind::Binary(x)) => Ok((&*x)
-                .deserializer(resolver)?
-                .deserialize()
-                .map_err(Ck3ErrorKind::Deserialize)?),
-            JominiFileKind::Zip(x) => Ok(match x.gamestate().map_err(Ck3ErrorKind::Envelope)? {
-                SaveContentKind::Text(mut x) => x
-                    .deserializer()
-                    .deserialize()
-                    .map_err(Ck3ErrorKind::Deserialize)?,
-                SaveContentKind::Binary(mut x) => x
-                    .deserializer(resolver)?
-                    .deserialize()
-                    .map_err(Ck3ErrorKind::Deserialize)?,
-            }),
-        }
-    }
 }
 
 #[derive(Debug, Deserialize)]

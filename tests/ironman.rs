@@ -1,7 +1,7 @@
 use ck3save::{
     models::{Gamestate, Header},
-    BasicTokenResolver, Ck3BinaryDeserialization, Ck3File, Ck3Melt, JominiFileKind, MeltOptions,
-    SaveDataKind, SaveHeaderKind,
+    BasicTokenResolver, Ck3BinaryDeserialization, Ck3File, Ck3Melt, DeserializeCk3, JominiFileKind,
+    MeltOptions, SaveDataKind, SaveHeaderKind,
 };
 use highway::HighwayHash;
 use jomini::binary::TokenResolver;
@@ -50,9 +50,9 @@ fn test_ck3_binary_save() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let file = utils::request_file("af_Munso_867_Ironman.ck3");
-    let mut file = Ck3File::from_file(file)?;
+    let file = Ck3File::from_file(file)?;
     assert_eq!(file.header().kind(), SaveHeaderKind::UnifiedBinary);
-    let game = Gamestate::from_file(&mut file, &*TOKENS).unwrap();
+    let game: Gamestate = (&file).deserialize(&*TOKENS).unwrap();
     assert_eq!(game.meta_data.version, String::from("1.0.2"));
     Ok(())
 }
@@ -80,10 +80,10 @@ fn test_ck3_binary_autosave() -> Result<(), Box<dyn std::error::Error>> {
     }
     let data = utils::inflate(utils::request_file("autosave.zip"));
 
-    let mut file = Ck3File::from_slice(&data[..])?;
+    let file = Ck3File::from_slice(&data[..])?;
     assert_eq!(file.header().kind(), SaveHeaderKind::Binary);
 
-    let game: Gamestate = Gamestate::from_file(&mut file, &*TOKENS).unwrap();
+    let game: Gamestate = (&file).deserialize(&*TOKENS).unwrap();
     assert_eq!(game.meta_data.version, String::from("1.0.2"));
 
     let JominiFileKind::Uncompressed(SaveDataKind::Binary(ref binary)) = file.kind() else {
@@ -107,8 +107,8 @@ fn test_ck3_binary_save_tokens() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
     let file = utils::request_file("af_Munso_867_Ironman.ck3");
-    let mut file = Ck3File::from_file(file)?;
-    let save: Gamestate = Gamestate::from_file(&mut file, &*TOKENS).unwrap();
+    let file = Ck3File::from_file(file)?;
+    let save: Gamestate = (&file).deserialize(&*TOKENS).unwrap();
     assert_eq!(file.header().kind(), SaveHeaderKind::UnifiedBinary);
     assert_eq!(save.meta_data.version, String::from("1.0.2"));
     Ok(())
@@ -175,8 +175,8 @@ fn test_ck3_binary_save_patch_1_3() -> Result<(), Box<dyn std::error::Error>> {
     let mut out = Cursor::new(Vec::new());
     (&file).melt(MeltOptions::new(), &*TOKENS, &mut out)?;
 
-    let mut file = Ck3File::from_slice(out.get_ref())?;
-    let save: Gamestate = Gamestate::from_file(&mut file, &*TOKENS).unwrap();
+    let file = Ck3File::from_slice(out.get_ref())?;
+    let save: Gamestate = (&file).deserialize(&*TOKENS).unwrap();
     assert_eq!(save.meta_data.version, String::from("1.3.0"));
     Ok(())
 }
@@ -192,9 +192,9 @@ fn test_ck3_1_0_3_old_cloud_and_local_tokens() -> Result<(), Box<dyn std::error:
     let mut out = Cursor::new(Vec::new());
     (&file).melt(MeltOptions::new(), &*TOKENS, &mut out)?;
 
-    let mut file = Ck3File::from_slice(out.get_ref())?;
+    let file = Ck3File::from_slice(out.get_ref())?;
     assert_eq!(file.header().kind(), SaveHeaderKind::Text);
-    let save: Gamestate = Gamestate::from_file(&mut file, &*TOKENS).unwrap();
+    let save: Gamestate = (&file).deserialize(&*TOKENS).unwrap();
 
     assert_eq!(save.meta_data.version, String::from("1.0.3"));
     Ok(())
@@ -206,8 +206,8 @@ fn decode_and_melt_gold_correctly() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
     let file = utils::request_file("ck3-1.3.1.ck3");
-    let mut file = Ck3File::from_file(file)?;
-    let save = Gamestate::from_file(&mut file, &*TOKENS).unwrap();
+    let file = Ck3File::from_file(file)?;
+    let save: Gamestate = (&file).deserialize(&*TOKENS).unwrap();
 
     assert_eq!(file.header().kind(), SaveHeaderKind::UnifiedBinary);
 
@@ -246,9 +246,9 @@ fn parse_patch16() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let file = utils::request_file("ck3-1.6.ck3");
-    let mut file = Ck3File::from_file(file)?;
+    let file = Ck3File::from_file(file)?;
     assert_eq!(file.header().kind(), SaveHeaderKind::UnifiedBinary);
-    let save = Gamestate::from_file(&mut file, &*TOKENS).unwrap();
+    let save: Gamestate = (&file).deserialize(&*TOKENS).unwrap();
     assert_eq!(save.meta_data.version.as_str(), "1.6.0");
     Ok(())
 }
@@ -320,8 +320,8 @@ fn parse_patch_1_16_slice() -> Result<(), Box<dyn std::error::Error>> {
     let mut file = utils::request_file("patch_1_16.ck3");
     let mut content = Vec::new();
     file.read_to_end(&mut content)?;
-    let mut file = Ck3File::from_slice(&content)?;
-    let result = Gamestate::from_file(&mut file, &*TOKENS).unwrap();
+    let file = Ck3File::from_slice(&content)?;
+    let result: Gamestate = (&file).deserialize(&*TOKENS).unwrap();
     assert_eq!(result.meta_data.version, String::from("1.16.2.3"));
     Ok(())
 }
