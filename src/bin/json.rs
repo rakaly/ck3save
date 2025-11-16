@@ -25,11 +25,11 @@ fn main() -> Result<(), Box<dyn Error>> {
             json_to_stdout(&buf)?;
         }
         JominiFileKind::Uncompressed(SaveDataKind::Binary(x)) => {
-            x.melt(melt_options, resolver, &mut buf)?;
+            (&*x).melt(melt_options, resolver, &mut buf)?;
             json_to_stdout(&buf)?;
         }
         JominiFileKind::Zip(x) => {
-            x.melt(melt_options, resolver, &mut buf)?;
+            (&*x).melt(melt_options, resolver, &mut buf)?;
             json_to_stdout(&buf)?;
         }
     };

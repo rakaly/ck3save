@@ -35,7 +35,11 @@ fn test_ck3_binary_header() {
     let JominiFileKind::Uncompressed(SaveDataKind::Binary(bin)) = file.kind_mut() else {
         panic!("expected binary");
     };
-    let header: Header = bin.deserializer(&*TOKENS).unwrap().deserialize().unwrap();
+    let header: Header = (&*bin)
+        .deserializer(&*TOKENS)
+        .unwrap()
+        .deserialize()
+        .unwrap();
     assert_eq!(header.meta_data.version, String::from("1.0.2"));
 }
 
@@ -86,15 +90,11 @@ fn test_ck3_binary_autosave() -> Result<(), Box<dyn std::error::Error>> {
         panic!("unexpected type");
     };
 
-    let header: Header = binary
-        .clone()
-        .deserializer(&*TOKENS)
-        .unwrap()
-        .deserialize()?;
+    let header: Header = (&*binary).deserializer(&*TOKENS).unwrap().deserialize()?;
     assert_eq!(header.meta_data.version, String::from("1.0.2"));
 
     let mut out = Cursor::new(Vec::new());
-    file.melt(MeltOptions::new(), &*TOKENS, &mut out)?;
+    (&file).melt(MeltOptions::new(), &*TOKENS, &mut out)?;
     memchr::memmem::find(out.get_ref(), b"gold=0.044").unwrap();
     memchr::memmem::find(out.get_ref(), b"gold=4.647").unwrap();
 
@@ -123,8 +123,7 @@ fn test_roundtrip_header_melt() {
         panic!("unexpected type");
     };
     let mut out = Cursor::new(Vec::new());
-    binary
-        .clone()
+    (&*binary)
         .melt(MeltOptions::new(), &*TOKENS, &mut out)
         .unwrap();
 
@@ -147,13 +146,16 @@ fn test_header_melt() {
         panic!("unexpected type");
     };
     let mut out = Cursor::new(Vec::new());
-    binary
-        .clone()
+    (&*binary)
         .melt(MeltOptions::new(), &*TOKENS, &mut out)
         .unwrap();
 
     let melted = include_bytes!("fixtures/header.melted");
-    assert_eq!(&melted[..], out.get_ref().as_slice(), "header did not melt correctly");
+    assert_eq!(
+        &melted[..],
+        out.get_ref().as_slice(),
+        "header did not melt correctly"
+    );
 }
 
 #[test]
@@ -169,9 +171,9 @@ fn test_ck3_binary_save_patch_1_3() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
     let file = utils::request_file("ck3-1.3-test.ck3");
-    let mut file = Ck3File::from_file(file)?;
+    let file = Ck3File::from_file(file)?;
     let mut out = Cursor::new(Vec::new());
-    file.melt(MeltOptions::new(), &*TOKENS, &mut out)?;
+    (&file).melt(MeltOptions::new(), &*TOKENS, &mut out)?;
 
     let mut file = Ck3File::from_slice(out.get_ref())?;
     let save: Gamestate = Gamestate::from_file(&mut file, &*TOKENS).unwrap();
@@ -185,10 +187,10 @@ fn test_ck3_1_0_3_old_cloud_and_local_tokens() -> Result<(), Box<dyn std::error:
         return Ok(());
     }
     let file = utils::request_file("ck3-1.0.3-local.ck3");
-    let mut file = Ck3File::from_file(file)?;
+    let file = Ck3File::from_file(file)?;
     assert_eq!(file.header().kind(), SaveHeaderKind::UnifiedBinary);
     let mut out = Cursor::new(Vec::new());
-    file.melt(MeltOptions::new(), &*TOKENS, &mut out)?;
+    (&file).melt(MeltOptions::new(), &*TOKENS, &mut out)?;
 
     let mut file = Ck3File::from_slice(out.get_ref())?;
     assert_eq!(file.header().kind(), SaveHeaderKind::Text);
@@ -229,8 +231,8 @@ fn decode_and_melt_gold_correctly() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut out = Cursor::new(Vec::new());
     let file = utils::request_file("ck3-1.3.1.ck3");
-    let mut file = Ck3File::from_file(file)?;
-    file.melt(MeltOptions::new(), &*TOKENS, &mut out)?;
+    let file = Ck3File::from_file(file)?;
+    (&file).melt(MeltOptions::new(), &*TOKENS, &mut out)?;
 
     memchr::memmem::find(out.get_ref(), b"gold=133.04397").unwrap();
     memchr::memmem::find(out.get_ref(), b"vassal_power_value=200").unwrap();
@@ -258,9 +260,9 @@ fn melt_patch14() -> Result<(), Box<dyn std::error::Error>> {
     }
     let file = utils::request_file("ck3-1.4-normal.ck3");
     let expected = utils::inflate(utils::request_file("ck3-1.4-normal_melted.zip"));
-    let mut file = Ck3File::from_file(file)?;
+    let file = Ck3File::from_file(file)?;
     let mut out = Cursor::new(Vec::new());
-    file.melt(MeltOptions::new(), &*TOKENS, &mut out)?;
+    (&file).melt(MeltOptions::new(), &*TOKENS, &mut out)?;
 
     assert_eq!(
         out.get_ref().as_slice(),
@@ -277,9 +279,9 @@ fn melt_patch15() -> Result<(), Box<dyn std::error::Error>> {
     }
     let file = utils::request_file("ck3-1.5-normal.ck3");
     let expected = utils::inflate(utils::request_file("ck3-1.5-normal_melted.zip"));
-    let mut file = Ck3File::from_file(file)?;
+    let file = Ck3File::from_file(file)?;
     let mut out = Cursor::new(Vec::new());
-    file.melt(MeltOptions::new(), &*TOKENS, &mut out)?;
+    (&file).melt(MeltOptions::new(), &*TOKENS, &mut out)?;
 
     assert_eq!(
         out.get_ref().as_slice(),
@@ -298,9 +300,9 @@ fn melt_patch15_slice() -> Result<(), Box<dyn std::error::Error>> {
     let mut content = Vec::new();
     file.read_to_end(&mut content)?;
     let expected = utils::inflate(utils::request_file("ck3-1.5-normal_melted.zip"));
-    let mut file = Ck3File::from_slice(&content)?;
+    let file = Ck3File::from_slice(&content)?;
     let mut out = Cursor::new(Vec::new());
-    file.melt(MeltOptions::new(), &*TOKENS, &mut out)?;
+    (&file).melt(MeltOptions::new(), &*TOKENS, &mut out)?;
 
     assert_eq!(
         out.get_ref().as_slice(),
