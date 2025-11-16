@@ -26,26 +26,20 @@ impl From<Ck3ErrorKind> for Ck3Error {
 /// Specific type of error
 #[derive(thiserror::Error, Debug)]
 pub enum Ck3ErrorKind {
-    #[error("unable to parse as zip: {0}")]
-    Zip(#[from] rawzip::Error),
-
-    #[error("missing gamestate entry in zip")]
-    ZipMissingEntry,
-
-    #[error("unrecognized zip compression method")]
-    UnknownCompression,
-
-    #[error("unable to parse due to: {0}")]
-    Parse(#[source] jomini::Error),
-
     #[error("unable to deserialize due to: {0}")]
-    Deserialize(#[source] jomini::DeserializeError),
+    Deserialize(#[source] jomini::Error),
 
     #[error("error while writing output: {0}")]
     Writer(#[source] jomini::Error),
 
     #[error("unknown binary token encountered: {token_id:#x}")]
     UnknownToken { token_id: u16 },
+
+    #[error("file envelope error: {0}")]
+    Envelope(#[from] jomini::envelope::EnvelopeError),
+
+    #[error("parsing error: {0}")]
+    Jomini(#[from] jomini::Error),
 
     #[error("invalid header")]
     InvalidHeader,
@@ -70,19 +64,21 @@ impl serde::de::Error for Ck3Error {
 
 impl From<jomini::Error> for Ck3Error {
     fn from(value: jomini::Error) -> Self {
-        let kind = match value.into_kind() {
-            jomini::ErrorKind::Deserialize(x) => match x.kind() {
+        if let jomini::ErrorKind::Deserialize(_) = value.kind() {
+            let jomini::ErrorKind::Deserialize(x) = value.into_kind() else {
+                unreachable!()
+            };
+
+            let kind = match x.kind() {
                 &jomini::DeserializeErrorKind::UnknownToken { token_id } => {
                     Ck3ErrorKind::UnknownToken { token_id }
                 }
-                _ => Ck3ErrorKind::Deserialize(x),
-            },
-            _ => Ck3ErrorKind::DeserializeImpl {
-                msg: String::from("unexpected error"),
-            },
-        };
-
-        Ck3Error::new(kind)
+                _ => Ck3ErrorKind::Deserialize(x.into()),
+            };
+            Ck3Error::new(kind)
+        } else {
+            Ck3Error::new(Ck3ErrorKind::Jomini(value))
+        }
     }
 }
 
@@ -95,6 +91,12 @@ impl From<io::Error> for Ck3Error {
 impl From<binary::ReaderError> for Ck3Error {
     fn from(value: binary::ReaderError) -> Self {
         Self::from(jomini::Error::from(value))
+    }
+}
+
+impl From<jomini::envelope::EnvelopeError> for Ck3Error {
+    fn from(value: jomini::envelope::EnvelopeError) -> Self {
+        Ck3Error::from(Ck3ErrorKind::from(value))
     }
 }
 

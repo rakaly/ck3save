@@ -24,18 +24,13 @@ Ironman saves are supported through a provided `TokenResolver`. Per PDS counsel,
 
 mod ck3date;
 mod errors;
-mod extraction;
 pub mod file;
 pub(crate) mod flavor;
-mod header;
 mod melt;
 pub mod models;
 
 pub use ck3date::*;
 pub use errors::*;
-pub use extraction::*;
-#[doc(inline)]
-pub use file::Ck3File;
-pub use header::*;
+pub use file::*;
 pub use jomini::binary::{BasicTokenResolver, FailedResolveStrategy};
 pub use melt::*;

@@ -1,7 +1,7 @@
 use ck3save::{
-    file::{Ck3FsFileKind, Ck3SliceFileKind},
     models::{Gamestate, Header},
-    BasicTokenResolver, Ck3File, Encoding, MeltOptions,
+    BasicTokenResolver, Ck3BinaryDeserialization, Ck3File, Ck3Melt, DeserializeCk3, JominiFileKind,
+    MeltOptions, SaveDataKind, SaveHeaderKind,
 };
 use highway::HighwayHash;
 use jomini::binary::TokenResolver;
@@ -29,22 +29,17 @@ macro_rules! skip_if_no_tokens {
 fn test_ck3_binary_header() {
     skip_if_no_tokens!();
     let data = include_bytes!("fixtures/header.bin");
-    let file = Ck3File::from_slice(&data[..]).unwrap();
-    assert_eq!(file.encoding(), Encoding::Binary);
+    let mut file = Ck3File::from_slice(&data[..]).unwrap();
+    assert_eq!(file.header().kind(), SaveHeaderKind::UnifiedBinary);
 
-    let header: Header = match file.kind() {
-        Ck3SliceFileKind::Text(_) => panic!("impossible"),
-        Ck3SliceFileKind::Binary(binary) => {
-            binary.clone().deserializer(&*TOKENS).deserialize().unwrap()
-        }
-        Ck3SliceFileKind::Zip(zip) => zip
-            .meta()
-            .unwrap()
-            .deserializer(&*TOKENS)
-            .deserialize()
-            .unwrap(),
+    let JominiFileKind::Uncompressed(SaveDataKind::Binary(bin)) = file.kind_mut() else {
+        panic!("expected binary");
     };
-
+    let header: Header = (&*bin)
+        .deserializer(&*TOKENS)
+        .unwrap()
+        .deserialize()
+        .unwrap();
     assert_eq!(header.meta_data.version, String::from("1.0.2"));
 }
 
@@ -55,9 +50,9 @@ fn test_ck3_binary_save() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let file = utils::request_file("af_Munso_867_Ironman.ck3");
-    let mut file = Ck3File::from_file(file)?;
-    assert_eq!(file.encoding(), Encoding::BinaryZip);
-    let game = file.parse_save(&*TOKENS)?;
+    let file = Ck3File::from_file(file)?;
+    assert_eq!(file.header().kind(), SaveHeaderKind::UnifiedBinary);
+    let game: Gamestate = (&file).deserialize(&*TOKENS).unwrap();
     assert_eq!(game.meta_data.version, String::from("1.0.2"));
     Ok(())
 }
@@ -67,8 +62,8 @@ fn test_ck3_binary_compressed_header() {
     skip_if_no_tokens!();
     let file = utils::request_file("von_konigsberg_867_01_01.ck3");
     let file = Ck3File::from_file(file).unwrap();
-    assert_eq!(file.encoding(), Encoding::BinaryZip);
-    let Ck3FsFileKind::Zip(zip) = file.kind() else {
+    assert_eq!(file.header().kind(), SaveHeaderKind::SplitBinary);
+    let JominiFileKind::Zip(zip) = file.kind() else {
         panic!("unexpected type");
     };
 
@@ -86,20 +81,20 @@ fn test_ck3_binary_autosave() -> Result<(), Box<dyn std::error::Error>> {
     let data = utils::inflate(utils::request_file("autosave.zip"));
 
     let file = Ck3File::from_slice(&data[..])?;
-    assert_eq!(file.encoding(), Encoding::Binary);
+    assert_eq!(file.header().kind(), SaveHeaderKind::Binary);
 
-    let game: Gamestate = file.parse_save(&*TOKENS)?;
+    let game: Gamestate = (&file).deserialize(&*TOKENS).unwrap();
     assert_eq!(game.meta_data.version, String::from("1.0.2"));
 
-    let Ck3SliceFileKind::Binary(ref binary) = file.kind() else {
+    let JominiFileKind::Uncompressed(SaveDataKind::Binary(ref binary)) = file.kind() else {
         panic!("unexpected type");
     };
 
-    let header: Header = binary.clone().deserializer(&*TOKENS).deserialize()?;
+    let header: Header = (&*binary).deserializer(&*TOKENS).unwrap().deserialize()?;
     assert_eq!(header.meta_data.version, String::from("1.0.2"));
 
     let mut out = Cursor::new(Vec::new());
-    file.melt(MeltOptions::new(), &*TOKENS, &mut out)?;
+    (&file).melt(MeltOptions::new(), &*TOKENS, &mut out)?;
     memchr::memmem::find(out.get_ref(), b"gold=0.044").unwrap();
     memchr::memmem::find(out.get_ref(), b"gold=4.647").unwrap();
 
@@ -112,9 +107,9 @@ fn test_ck3_binary_save_tokens() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
     let file = utils::request_file("af_Munso_867_Ironman.ck3");
-    let mut file = Ck3File::from_file(file)?;
-    let save: Gamestate = file.parse_save(&*TOKENS)?;
-    assert_eq!(file.encoding(), Encoding::BinaryZip);
+    let file = Ck3File::from_file(file)?;
+    let save: Gamestate = (&file).deserialize(&*TOKENS).unwrap();
+    assert_eq!(file.header().kind(), SaveHeaderKind::UnifiedBinary);
     assert_eq!(save.meta_data.version, String::from("1.0.2"));
     Ok(())
 }
@@ -124,22 +119,21 @@ fn test_roundtrip_header_melt() {
     skip_if_no_tokens!();
     let data = include_bytes!("fixtures/header.bin");
     let file = Ck3File::from_slice(&data[..]).unwrap();
-    let Ck3SliceFileKind::Binary(ref binary) = file.kind() else {
+    let JominiFileKind::Uncompressed(SaveDataKind::Binary(ref binary)) = file.kind() else {
         panic!("unexpected type");
     };
     let mut out = Cursor::new(Vec::new());
-    binary
-        .clone()
+    (&*binary)
         .melt(MeltOptions::new(), &*TOKENS, &mut out)
         .unwrap();
 
     let file = Ck3File::from_slice(out.get_ref()).unwrap();
-    let Ck3SliceFileKind::Text(ref text) = file.kind() else {
+    let JominiFileKind::Uncompressed(SaveDataKind::Text(ref text)) = file.kind() else {
         panic!("unexpected type");
     };
     let header: Header = text.deserializer().deserialize().unwrap();
 
-    assert_eq!(file.encoding(), Encoding::Text);
+    assert_eq!(file.header().kind(), SaveHeaderKind::Text);
     assert_eq!(header.meta_data.version, String::from("1.0.2"));
 }
 
@@ -148,17 +142,20 @@ fn test_header_melt() {
     skip_if_no_tokens!();
     let data = include_bytes!("fixtures/header.bin");
     let file = Ck3File::from_slice(&data[..]).unwrap();
-    let Ck3SliceFileKind::Binary(ref binary) = file.kind() else {
+    let JominiFileKind::Uncompressed(SaveDataKind::Binary(ref binary)) = file.kind() else {
         panic!("unexpected type");
     };
     let mut out = Cursor::new(Vec::new());
-    binary
-        .clone()
+    (&*binary)
         .melt(MeltOptions::new(), &*TOKENS, &mut out)
         .unwrap();
 
     let melted = include_bytes!("fixtures/header.melted");
-    assert_eq!(&melted[..], out.get_ref().as_slice());
+    assert_eq!(
+        &melted[..],
+        out.get_ref().as_slice(),
+        "header did not melt correctly"
+    );
 }
 
 #[test]
@@ -174,12 +171,12 @@ fn test_ck3_binary_save_patch_1_3() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
     let file = utils::request_file("ck3-1.3-test.ck3");
-    let mut file = Ck3File::from_file(file)?;
+    let file = Ck3File::from_file(file)?;
     let mut out = Cursor::new(Vec::new());
-    file.melt(MeltOptions::new(), &*TOKENS, &mut out)?;
+    (&file).melt(MeltOptions::new(), &*TOKENS, &mut out)?;
 
     let file = Ck3File::from_slice(out.get_ref())?;
-    let save: Gamestate = file.parse_save(&*TOKENS)?;
+    let save: Gamestate = (&file).deserialize(&*TOKENS).unwrap();
     assert_eq!(save.meta_data.version, String::from("1.3.0"));
     Ok(())
 }
@@ -190,14 +187,14 @@ fn test_ck3_1_0_3_old_cloud_and_local_tokens() -> Result<(), Box<dyn std::error:
         return Ok(());
     }
     let file = utils::request_file("ck3-1.0.3-local.ck3");
-    let mut file = Ck3File::from_file(file)?;
-    assert_eq!(file.encoding(), Encoding::BinaryZip);
+    let file = Ck3File::from_file(file)?;
+    assert_eq!(file.header().kind(), SaveHeaderKind::UnifiedBinary);
     let mut out = Cursor::new(Vec::new());
-    file.melt(MeltOptions::new(), &*TOKENS, &mut out)?;
+    (&file).melt(MeltOptions::new(), &*TOKENS, &mut out)?;
 
     let file = Ck3File::from_slice(out.get_ref())?;
-    assert_eq!(file.encoding(), Encoding::Text);
-    let save: Gamestate = file.parse_save(&*TOKENS)?;
+    assert_eq!(file.header().kind(), SaveHeaderKind::Text);
+    let save: Gamestate = (&file).deserialize(&*TOKENS).unwrap();
 
     assert_eq!(save.meta_data.version, String::from("1.0.3"));
     Ok(())
@@ -209,10 +206,10 @@ fn decode_and_melt_gold_correctly() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
     let file = utils::request_file("ck3-1.3.1.ck3");
-    let mut file = Ck3File::from_file(file)?;
-    let save = file.parse_save(&*TOKENS)?;
+    let file = Ck3File::from_file(file)?;
+    let save: Gamestate = (&file).deserialize(&*TOKENS).unwrap();
 
-    assert_eq!(file.encoding(), Encoding::BinaryZip);
+    assert_eq!(file.header().kind(), SaveHeaderKind::UnifiedBinary);
 
     let character = save.living.get(&16322).unwrap();
     assert_eq!(
@@ -234,8 +231,8 @@ fn decode_and_melt_gold_correctly() -> Result<(), Box<dyn std::error::Error>> {
 
     let mut out = Cursor::new(Vec::new());
     let file = utils::request_file("ck3-1.3.1.ck3");
-    let mut file = Ck3File::from_file(file)?;
-    file.melt(MeltOptions::new(), &*TOKENS, &mut out)?;
+    let file = Ck3File::from_file(file)?;
+    (&file).melt(MeltOptions::new(), &*TOKENS, &mut out)?;
 
     memchr::memmem::find(out.get_ref(), b"gold=133.04397").unwrap();
     memchr::memmem::find(out.get_ref(), b"vassal_power_value=200").unwrap();
@@ -249,9 +246,9 @@ fn parse_patch16() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     let file = utils::request_file("ck3-1.6.ck3");
-    let mut file = Ck3File::from_file(file)?;
-    assert_eq!(file.encoding(), Encoding::BinaryZip);
-    let save = file.parse_save(&*TOKENS)?;
+    let file = Ck3File::from_file(file)?;
+    assert_eq!(file.header().kind(), SaveHeaderKind::UnifiedBinary);
+    let save: Gamestate = (&file).deserialize(&*TOKENS).unwrap();
     assert_eq!(save.meta_data.version.as_str(), "1.6.0");
     Ok(())
 }
@@ -263,9 +260,9 @@ fn melt_patch14() -> Result<(), Box<dyn std::error::Error>> {
     }
     let file = utils::request_file("ck3-1.4-normal.ck3");
     let expected = utils::inflate(utils::request_file("ck3-1.4-normal_melted.zip"));
-    let mut file = Ck3File::from_file(file)?;
+    let file = Ck3File::from_file(file)?;
     let mut out = Cursor::new(Vec::new());
-    file.melt(MeltOptions::new(), &*TOKENS, &mut out)?;
+    (&file).melt(MeltOptions::new(), &*TOKENS, &mut out)?;
 
     assert_eq!(
         out.get_ref().as_slice(),
@@ -282,9 +279,9 @@ fn melt_patch15() -> Result<(), Box<dyn std::error::Error>> {
     }
     let file = utils::request_file("ck3-1.5-normal.ck3");
     let expected = utils::inflate(utils::request_file("ck3-1.5-normal_melted.zip"));
-    let mut file = Ck3File::from_file(file)?;
+    let file = Ck3File::from_file(file)?;
     let mut out = Cursor::new(Vec::new());
-    file.melt(MeltOptions::new(), &*TOKENS, &mut out)?;
+    (&file).melt(MeltOptions::new(), &*TOKENS, &mut out)?;
 
     assert_eq!(
         out.get_ref().as_slice(),
@@ -305,7 +302,7 @@ fn melt_patch15_slice() -> Result<(), Box<dyn std::error::Error>> {
     let expected = utils::inflate(utils::request_file("ck3-1.5-normal_melted.zip"));
     let file = Ck3File::from_slice(&content)?;
     let mut out = Cursor::new(Vec::new());
-    file.melt(MeltOptions::new(), &*TOKENS, &mut out)?;
+    (&file).melt(MeltOptions::new(), &*TOKENS, &mut out)?;
 
     assert_eq!(
         out.get_ref().as_slice(),
@@ -324,7 +321,7 @@ fn parse_patch_1_16_slice() -> Result<(), Box<dyn std::error::Error>> {
     let mut content = Vec::new();
     file.read_to_end(&mut content)?;
     let file = Ck3File::from_slice(&content)?;
-    let result = file.parse_save(&*TOKENS)?;
+    let result: Gamestate = (&file).deserialize(&*TOKENS).unwrap();
     assert_eq!(result.meta_data.version, String::from("1.16.2.3"));
     Ok(())
 }
@@ -336,7 +333,7 @@ fn patch_1_16_meta_melt() -> Result<(), Box<dyn std::error::Error>> {
     }
     let file = utils::request_file("patch_1_16.ck3");
     let file = Ck3File::from_file(file)?;
-    let Ck3FsFileKind::Zip(ck3_zip) = file.kind() else {
+    let JominiFileKind::Zip(ck3_zip) = file.kind() else {
         panic!("expected a zip file");
     };
 
@@ -359,7 +356,7 @@ fn patch_1_16_meta_melt() -> Result<(), Box<dyn std::error::Error>> {
     let mut buf = Vec::new();
     file.read_to_end(&mut buf)?;
     let file = Ck3File::from_slice(&buf)?;
-    let Ck3SliceFileKind::Zip(ck3_zip) = file.kind() else {
+    let JominiFileKind::Zip(ck3_zip) = file.kind() else {
         panic!("expected a zip file");
     };
 
