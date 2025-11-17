@@ -1,5 +1,5 @@
 #![no_main]
-use ck3save::{file::Ck3ParsedText, BasicTokenResolver};
+use ck3save::{BasicTokenResolver, Ck3Melt, DeserializeCk3};
 use libfuzzer_sys::fuzz_target;
 use std::sync::LazyLock;
 
@@ -9,22 +9,19 @@ static TOKENS: LazyLock<BasicTokenResolver> = LazyLock::new(|| {
 });
 
 fn run(data: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
-    let file = ck3save::Ck3File::from_slice(&data)?;
+    use ck3save::file::*;
 
+    let mut file = ck3save::Ck3File::from_slice(&data)?;
+
+    // Melt the file
     let mut sink = std::io::sink();
-    let _ = file.melt(ck3save::MeltOptions::new(), &*TOKENS, &mut sink);
-    let _ = file.parse_save(&*TOKENS);
-    let _ = file.encoding();
+    let _ = (&file).melt(ck3save::MeltOptions::new(), &*TOKENS, &mut sink);
 
-    match file.kind() {
-        ck3save::file::Ck3SliceFileKind::Text(x) => {
-            Ck3ParsedText::from_raw(x.get_ref())?
-                .reader()
-                .json()
-                .to_writer(std::io::sink())?;
-        }
-        _ => {}
-    }
+    // Try to deserialize as serde_json::Value
+    let _: Result<serde_json::Value, _> = (&mut file).deserialize(&*TOKENS);
+
+    // Check header information
+    let _ = file.header().kind();
 
     Ok(())
 }
