@@ -1,5 +1,5 @@
 #![no_main]
-use ck3save::{BasicTokenResolver, Ck3Melt, DeserializeCk3};
+use ck3save::{models::Gamestate, BasicTokenResolver, Ck3Melt, DeserializeCk3};
 use libfuzzer_sys::fuzz_target;
 use std::sync::LazyLock;
 
@@ -9,16 +9,14 @@ static TOKENS: LazyLock<BasicTokenResolver> = LazyLock::new(|| {
 });
 
 fn run(data: &[u8]) -> Result<(), Box<dyn std::error::Error>> {
-    use ck3save::file::*;
-
-    let mut file = ck3save::Ck3File::from_slice(&data)?;
+    let file = ck3save::Ck3File::from_slice(&data)?;
 
     // Melt the file
     let mut sink = std::io::sink();
     let _ = (&file).melt(ck3save::MeltOptions::new(), &*TOKENS, &mut sink);
 
-    // Try to deserialize as serde_json::Value
-    let _: Result<serde_json::Value, _> = (&mut file).deserialize(&*TOKENS);
+    // Try to deserialize the gamestate
+    let _: Result<Gamestate, _> = (&file).deserialize(&*TOKENS);
 
     // Check header information
     let _ = file.header().kind();
