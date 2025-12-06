@@ -15,7 +15,7 @@ categories = ["parsing"]
 serialize = []
 
 [dependencies]
-jomini = { version = "0.32", features = ["envelope", "json"] }
+jomini = { version = "0.33", features = ["envelope", "json"] }
 serde = { version = "1.0.195", features = ["derive"] }
 thiserror = "2.0.0"
 
