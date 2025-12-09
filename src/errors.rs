@@ -1,5 +1,5 @@
 use jomini::binary;
-use std::{fmt, io};
+use std::{io};
 
 /// A Ck3 Error
 #[derive(thiserror::Error, Debug)]
@@ -33,7 +33,7 @@ pub enum Ck3ErrorKind {
     Writer(#[source] jomini::Error),
 
     #[error("unknown binary token encountered: {token_id:#x}")]
-    UnknownToken { token_id: u16 },
+    UnknownToken { token_id: u32 },
 
     #[error("file envelope error: {0}")]
     Envelope(#[from] jomini::envelope::EnvelopeError),
@@ -47,19 +47,11 @@ pub enum Ck3ErrorKind {
     #[error("expected the binary integer: {0} to be parsed as a date")]
     InvalidDate(i32),
 
-    #[error("unable to deserialize due to: {msg}. This shouldn't occur as this is a deserializer wrapper")]
-    DeserializeImpl { msg: String },
-
     #[error("io error: {0}")]
     Io(#[from] io::Error),
-}
 
-impl serde::de::Error for Ck3Error {
-    fn custom<T: fmt::Display>(msg: T) -> Self {
-        Ck3Error::new(Ck3ErrorKind::DeserializeImpl {
-            msg: msg.to_string(),
-        })
-    }
+    #[error("invalid syntax: {0}")]
+    InvalidSyntax(String),
 }
 
 impl From<jomini::Error> for Ck3Error {
