@@ -1,5 +1,5 @@
 use jomini::binary;
-use std::{io};
+use std::io;
 
 /// A Ck3 Error
 #[derive(thiserror::Error, Debug)]

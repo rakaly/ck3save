@@ -3,7 +3,7 @@ use ck3save::{
     BasicTokenResolver, Ck3BinaryDeserialization, Ck3File, Ck3Melt, DeserializeCk3, JominiFileKind,
     MeltOptions, SaveDataKind, SaveHeaderKind,
 };
-use highway::HighwayHash;
+use highway::{HighwayHash, HighwayHasher};
 use jomini::binary::TokenResolver;
 use std::{
     io::{BufWriter, Cursor, Read},
@@ -78,9 +78,9 @@ fn test_ck3_binary_autosave() -> Result<(), Box<dyn std::error::Error>> {
     if TOKENS.is_empty() {
         return Ok(());
     }
-    let data = utils::inflate(utils::request_file("autosave.zip"));
+    let file = utils::request_file("autosave.ck3");
 
-    let file = Ck3File::from_slice(&data[..])?;
+    let file = Ck3File::from_file(file)?;
     assert_eq!(file.header().kind(), SaveHeaderKind::Binary);
 
     let game: Gamestate = (&file).deserialize(&*TOKENS).unwrap();
@@ -259,15 +259,18 @@ fn melt_patch14() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
     let file = utils::request_file("ck3-1.4-normal.ck3");
-    let expected = utils::inflate(utils::request_file("ck3-1.4-normal_melted.zip"));
     let file = Ck3File::from_file(file)?;
     let mut out = Cursor::new(Vec::new());
     (&file).melt(MeltOptions::new(), &*TOKENS, &mut out)?;
 
+    let checksum = HighwayHasher::default().hash256(out.get_ref());
+    let hex = format!(
+        "0x{:016x}{:016x}{:016x}{:016x}",
+        checksum[0], checksum[1], checksum[2], checksum[3]
+    );
     assert_eq!(
-        out.get_ref().as_slice(),
-        expected.as_slice(),
-        "patch 1.4 did not melt correctly"
+        hex, "0xd731c320e2968e28cf7d2642d6a456b3d97b614c734bf4d9d0f6fb3acb1a3ee7",
+        "patch 1.4 slice did not melt to expected checksum"
     );
     Ok(())
 }
@@ -278,15 +281,18 @@ fn melt_patch15() -> Result<(), Box<dyn std::error::Error>> {
         return Ok(());
     }
     let file = utils::request_file("ck3-1.5-normal.ck3");
-    let expected = utils::inflate(utils::request_file("ck3-1.5-normal_melted.zip"));
     let file = Ck3File::from_file(file)?;
     let mut out = Cursor::new(Vec::new());
     (&file).melt(MeltOptions::new(), &*TOKENS, &mut out)?;
 
+    let checksum = HighwayHasher::default().hash256(out.get_ref());
+    let hex = format!(
+        "0x{:016x}{:016x}{:016x}{:016x}",
+        checksum[0], checksum[1], checksum[2], checksum[3]
+    );
     assert_eq!(
-        out.get_ref().as_slice(),
-        expected.as_slice(),
-        "patch 1.5 did not melt correctly"
+        hex, "0x6b01e43ba332ead0350af9c08372792ece74005268014fbff1c597c8d774ed7e",
+        "patch 1.5 slice did not melt to expected checksum"
     );
     Ok(())
 }
@@ -299,16 +305,19 @@ fn melt_patch15_slice() -> Result<(), Box<dyn std::error::Error>> {
     let mut file = utils::request_file("ck3-1.5-normal.ck3");
     let mut content = Vec::new();
     file.read_to_end(&mut content)?;
-    let expected = utils::inflate(utils::request_file("ck3-1.5-normal_melted.zip"));
     let file = Ck3File::from_slice(&content)?;
     let mut out = Cursor::new(Vec::new());
     (&file).melt(MeltOptions::new(), &*TOKENS, &mut out)?;
-
-    assert_eq!(
-        out.get_ref().as_slice(),
-        expected.as_slice(),
-        "patch 1.5 did not melt correctly"
+    let checksum = HighwayHasher::default().hash256(out.get_ref());
+    let hex = format!(
+        "0x{:016x}{:016x}{:016x}{:016x}",
+        checksum[0], checksum[1], checksum[2], checksum[3]
     );
+    assert_eq!(
+        hex, "0x6b01e43ba332ead0350af9c08372792ece74005268014fbff1c597c8d774ed7e",
+        "patch 1.5 slice did not melt to expected checksum"
+    );
+
     Ok(())
 }
 
