@@ -15,22 +15,22 @@ pub use jomini::envelope::*;
 /// Type alias for Ck3 text deserializer
 ///
 /// A lazy way to avoid the need to reimplement deserializer
-pub type Ck3TextDeserializer<R> = TextReaderDeserializer<R, Utf8Encoding>;
-pub type Ck3BinaryDeserializer<'res, RES, R> =
-    BinaryReaderDeserializer<'res, RES, Box<dyn BinaryFlavor>, R>;
+pub type Ck3TextDeserializer<'r> = TextReaderDeserializer<'r, Utf8Encoding>;
+pub type Ck3BinaryDeserializer<'r, 'res, RES> =
+    BinaryReaderDeserializer<'r, 'res, RES, Box<dyn BinaryFlavor>>;
 
 pub trait Ck3BinaryDeserialization {
     fn deserializer<'res, RES: TokenResolver>(
         &mut self,
         resolver: &'res RES,
-    ) -> Result<Ck3BinaryDeserializer<'res, RES, impl Read + '_>, Ck3Error>;
+    ) -> Result<Ck3BinaryDeserializer<'_, 'res, RES>, Ck3Error>;
 }
 
 impl<R: ReaderAt> Ck3BinaryDeserialization for &'_ SaveData<BinaryEncoding, R> {
     fn deserializer<'res, RES: TokenResolver>(
         &mut self,
         resolver: &'res RES,
-    ) -> Result<Ck3BinaryDeserializer<'res, RES, impl Read + '_>, Ck3Error> {
+    ) -> Result<Ck3BinaryDeserializer<'_, 'res, RES>, Ck3Error> {
         let (read, flavor) = flavor_reader(self.body().cursor())?;
 
         let deser = BinaryDeserializerBuilder::with_flavor(flavor as Box<dyn BinaryFlavor>)
@@ -44,7 +44,7 @@ impl<R: Read> Ck3BinaryDeserialization for SaveContent<BinaryEncoding, R> {
     fn deserializer<'res, RES: TokenResolver>(
         &mut self,
         resolver: &'res RES,
-    ) -> Result<Ck3BinaryDeserializer<'res, RES, impl Read + '_>, Ck3Error> {
+    ) -> Result<Ck3BinaryDeserializer<'_, 'res, RES>, Ck3Error> {
         let (read, flavor) = flavor_reader(self)?;
 
         let deser = BinaryDeserializerBuilder::with_flavor(flavor as Box<dyn BinaryFlavor>)
@@ -58,7 +58,7 @@ impl<R: Read> Ck3BinaryDeserialization for SaveMetadata<BinaryEncoding, R> {
     fn deserializer<'res, RES: TokenResolver>(
         &mut self,
         resolver: &'res RES,
-    ) -> Result<Ck3BinaryDeserializer<'res, RES, impl Read + '_>, Ck3Error> {
+    ) -> Result<Ck3BinaryDeserializer<'_, 'res, RES>, Ck3Error> {
         let (read, flavor) = flavor_reader(self)?;
 
         let deser = BinaryDeserializerBuilder::with_flavor(flavor as Box<dyn BinaryFlavor>)
