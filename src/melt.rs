@@ -232,8 +232,8 @@ where
     Ok(MeltedDocument { unknown_tokens })
 }
 
-fn inner_melt<Reader, Writer, Resolver>(
-    reader: &mut TokenReader<Reader>,
+fn inner_melt<Writer, Resolver>(
+    reader: &mut TokenReader<'_>,
     wtr: &mut jomini::TextWriter<Writer>,
     flavor: &dyn Ck3BinaryFlavor,
     resolver: Resolver,
@@ -242,7 +242,6 @@ fn inner_melt<Reader, Writer, Resolver>(
     header: bool,
 ) -> Result<(), Ck3Error>
 where
-    Reader: Read,
     Writer: Write,
     Resolver: TokenResolver,
 {
